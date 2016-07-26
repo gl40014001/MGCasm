@@ -1,0 +1,876 @@
+   10REM **** MEGA GAMES CARTRIDGE MENU50A - 1V0 - 13-07-16 - DEJH ****
+   20:
+   30REM *** Set Screen MODE
+   40MODE3
+   50:
+   60REM *** Set operation of Escape Key - Not set-up, as yet!
+   70PROCEscapeOperationSet
+   80:
+   90REM *** Setup
+  100PROCSetUp
+  110:
+  120REM *** Turn on inverted text
+  130VDU17,0,17,129
+  140:
+  150REM *** Print header text - centered
+  160PRINTTAB(25,1);" Mega Games Cartridge  MENU ";
+  170:
+  180REM *** Turn off inverted text
+  190VDU17,1,17,128
+  200:
+  210REM *** Print screen Version # bottom left
+  220PRINTTAB(1,24);"V1.0";
+  230:
+  240REM *** Print number of Games top right
+  250PRINTTAB(64,1);"# of Games=";TotalGames%
+  260:
+  270REM *** Loop2 Set up the screen
+  280:
+  290REM *** Clear the top left information areas
+  300PRINTTAB(1,1)"                    ";:PRINTTAB(1,2)"                       ";
+  310:
+  320REM *** Loop 4
+  330:
+  340REM *** Display the current search if no page back
+  350IF Selection%<>139 THEN PRINTTAB(1,1)Search$(Search%);" ";
+  360:
+  370REM *** If search is game by Alpha or Publisher then
+  380REM *** show search selection and search match number
+  390IF Search%>0 AND Search%<3 THEN PRINT;CHR$(Selection1%);" ";SearchNumber1%
+  400:
+  410REM *** If search is Genre -  show chosen Genre and search match number
+  420IF Search%=3 THEN PRINTTAB(1,2);Genre$;" ";SearchNumber1%
+  430:
+  440REM *** Display all if requested
+  450IF Search%=0 THEN PROCDisplayList0
+  460:
+  470REM *** Display Alpha/Publisher selection
+  480:
+  490REM IF Search%=1, 2 OR 3 THEN DisplayList
+  500IF Search%<>0 THEN SearchNumber%=0:PROCDisplayList123
+  510:
+  520REM *** Turn Listing Flag off
+  530Listing%=0
+  540:
+  550REM *** Ensure default window
+  560VDU26
+  570:
+  580REM *** Display selection options
+  590PRINTTAB(2,21);"1 Games - 2 Games Alphabetically - 3 Games by Publisher - 4 Games by Genre";
+  600:
+  610REM *** Display page froward and page backwards options if valid
+  620:
+  630REM *** Clear the page forward and page backward option locations
+  640PRINTTAB(2,22);"               ";TAB(65,22);"           "
+  650:
+  660REM *** Only print Next Page Option if valid
+  670IF NumberOfEntries% >0 THEN PRINTTAB(65,22)CHR$(224);" Next Page";
+  680:
+  690REM *** Only print Previous Page Option if valid
+  700IF DisplayPage% >1 THEN PRINTTAB(2,22)CHR$(225);" Previous Page"
+  710:
+  720REM *** Clear bottom information area
+  730PRINTTAB(19,23);"                      ";
+  740:
+  750REM *** Loop3
+  760:
+  770REM *** Clear bottom line request and display Exit Option
+  780PRINTTAB(68,24)"(0 to EXIT)";:PRINTTAB(19,24)"     ";
+  790:
+  800REM *** Display Make Selection request in inverted text
+  810:
+  820REM *** Turn inverted text on
+  830VDU17,0,17,129
+  840:
+  850REM *** Print mesage
+  860PRINT" Make a Selection from above ";
+  870:
+  880REM *** Turn inverted text off
+  890VDU17,1,17,128
+  900:
+  910REM *** Clear area the after above message
+  920PRINT"       ";
+  930:
+  940REM *** Turn cursor on
+  950VDU23,1,1;0;0;0;
+  960:
+  970REM *** Flush the keyboard buffer
+  980*FX21,0
+  990:
+ 1000REM *** Wait for user selection
+ 1010REPEAT
+ 1020:
+ 1030REM *** Position Cursor
+ 1040PRINTTAB(54,24);
+ 1050:
+ 1060REM *** Wait for input
+ 1070Selection%=GET
+ 1080:
+ 1090REM *** Until a valid option is chosen
+ 1100UNTIL Selection%>64 AND Selection%<=(PLINE%+64) OR Selection%>47 AND Selection%<53 OR NumberOfEntries% >0 AND Selection%=138 OR DisplayPage% >1 AND Selection%=139
+ 1110:
+ 1120REM *** Turn cursor off
+ 1130VDU23,1,0;0;0;0;
+ 1140:
+ 1150REM *** Dispaly selection if between 0 and 4
+ 1160IF Selection%>47 AND Selection%<53 THEN PRINT;Selection%-48;
+ 1170:
+ 1180REM *** Dispaly selection if between A and last choice (up to Q)
+ 1190IF (Selection%>64 AND Selection%<=(PLINE%+64)) THEN PRINT;CHR$(Selection%);
+ 1200:
+ 1210REM *** Display Forward or Backwards Arrow if selected
+ 1220IF Selection%=138 OR Selection%=139 THEN PRINT;CHR$(Selection%+86);
+ 1230:
+ 1240REM *** Clear selection from screen, after a short delay
+ 1250PROCWAIT(2):PRINTTAB(54,24)" ";
+ 1260:
+ 1270REM *** If 0 exit program
+ 1280IF Selection%=48 THEN PROCSCAPE
+ 1290:
+ 1300REM *** If selection is 1, 2, 3 or 4 convert to 0, 1, 2, 3
+ 1310REM *** This is to match the input with any stored matrix
+ 1320:
+ 1330IF Selection%>48 AND Selection%<53 THEN Selection%=Selection%-1
+ 1340:
+ 1350REM *** Do menue display request
+ 1360:
+ 1370REM *** Listing% is to ensure that when a selection has been made (A>Z)
+ 1380REM *** the list is displayed and a game start is not attempted!
+ 1390:
+ 1400REM *** If the selection equals 0 - Search all - Go to Loop 2
+ 1410IF Selection%=48 THEN Search%=0:NumberOfEntries%=TotalGames%:NextAddress%=GameStart%:DisplayPage%=1:GOTO300
+ 1420:
+ 1430REM If the selection equals 1 - Search by Alpha
+ 1440IF Selection%=49 THEN Listing%=1:Search%=1:DisplayPage%=1:NumberOfEntries%=TotalGames%:NextAddress%=GameStart%:SearchNumber2%=0:PROCAlphaPubGen
+ 1450:
+ 1460REM If the selection equals 2 - Search by Publisher
+ 1470IF Selection%=50 THEN Listing%=1:Search%=2:DisplayPage%=1:NumberOfEntries%=TotalGames%:NextAddress%=GameStart%:SearchNumber2%=0:PROCAlphaPubGen
+ 1480:
+ 1490REM If the selection equals 3 - Search by Genre
+ 1500IF Selection%=51 THEN Listing%=1:Search%=3:DisplayPage%=1:NumberOfEntries%=TotalGames%:NextAddress%=GameStart%:SearchNumber2%=0:PROCAlphaPubGen
+ 1510:
+ 1520REM *** On return from Search equal 1, 2 or 3 check for up "BACK"
+ 1530IF Selection%=239 THEN NumberOfEntries%=0:GOTO 590
+ 1540:
+ 1550REM *** Check for Page forward with entries still to display - Loop 2
+ 1560IF Selection%=138 AND NumberOfEntries%>0 THEN DisplayPage%=DisplayPage%+1:GOTO 300
+ 1570:
+ 1580REM *** Check for Page forward with NO  entries still to display  Loop 3
+ 1590IF Selection%=138 AND NumberOfEntries%<1 THEN GOTO 780
+ 1600:
+ 1610REM *** Check for Page backwards with NO pages to go to - Loop 3
+ 1620IF Selection%=139 AND DisplayPage%=1 THEN GOTO 780
+ 1630:
+ 1640REM *** Check for Page backwards with pages to go to - Loop 2
+ 1650IF Selection%=139 THEN PROCPageBack:Selection%=0:GOTO 300
+ 1660:
+ 1670REM *** If not a game start selection - Loop 4
+ 1680IF Listing%=1 THEN GOTO 350
+ 1690:
+ 1700REM *** Start of game selection loading
+ 1710:
+ 1720REM *** Remove CHR$ offset to obtain base selection number
+ 1730Selection%=Selection%-64
+ 1740:
+ 1750REM *** Call Game start procedure
+ 1760END: PROCGameStart
+ 1770REM <<<<<<<GameStart CALLED HERE>>>>>>> @@@@@@@@@@@@@@@@@
+ 1780END
+ 1790:
+ 1800REM *** Do if Escape pressed
+ 1810DEFPROCEscapeOperationSet
+ 1820:REM *** TBD
+ 1830ENDPROC
+ 1840:
+ 1850REM *** Define Variables
+ 1860DEFPROCSetUp
+ 1870:
+ 1880REM *** Turn off Cursor Editing
+ 1890*FX4,1
+ 1900:
+ 1910REM *** Turn off cursor
+ 1920VDU23,1,0;0;0;0;
+ 1930:
+ 1940REM *** Turn off the ADC sampling. Needs to be turned on again for games!
+ 1950*FX163,128,1
+ 1960:
+ 1970REM *** Storage Entry address:Storage address of first displayed entry
+ 1980REM *** Storage for number of entries left, at the start of the listing
+ 1990:
+ 2000REM *** Display-titles list
+ 2010DATA Games,Alphabetically,Publisher,Genre
+ 2020:
+ 2030REM *** Store display titles list in matrix for easy access
+ 2040DIM Search$(4):FOR J%=0 TO 3:READ Search$(J%):NEXTJ%
+ 2050:
+ 2060REM *** SearchNumber% use #1 equals number of matching entries found
+ 2070REM *** SearchNumber% use #2 used to index found entries when displaying
+ 2080SearchNumber%=0
+ 2090:
+ 2100REM *** SearchNumber1% is a copy of entries found and used when
+ 2110REM *** displaying information on the screen
+ 2120SearchNumber1%=0
+ 2130:
+ 2140REM *** SearchNumber2% is used as an index in PROCDisplaList123
+ 2150SearchNumber2%=0
+ 2160:
+ 2170REM *** Exit message flag F% equals 1 indicates "No index"
+ 2180F%=0
+ 2190:
+ 2200REM *** Ensure Caps Lock is ON
+ 2210*FX202,32
+ 2220:
+ 2230REM *** Define user characters 224 & 225 for up and down arrows
+ 2240VDU23,224,24,24,24,24,24,126,60,24
+ 2250VDU23,225,24,60,126,24,24,24,24,24
+ 2260:
+ 2270REM *** Set initial selection to List All
+ 2280Selection%=0
+ 2290:
+ 2300REM *** Screen listing set to off
+ 2310Listing%=0
+ 2320:
+ 2330REM *** Nnumber of entries listed on screen
+ 2340ScreenLines%=17
+ 2350:
+ 2360REM *** Nnumber of Genres
+ 2370GenreNumber%=32
+ 2380:
+ 2390REM *** Count of displayed pages of 17 lines
+ 2400DisplayPage%=1
+ 2410:
+ 2420REM *** FrontSlot=2 BackSlot=0
+ 2430SLOT%=0
+ 2440:
+ 2450REM *** Start of First entry in the Index ROM
+ 2460GameStart%=&8008
+ 2470:
+ 2480REM *** Number of Game entries (located at &8002)
+ 2490NumberOfEntries%=0
+ 2500:
+ 2510REM *** Address of next entry in list - Set, initially, to start
+ 2520NextAddress%=&8008
+ 2530:
+ 2540REM *** Number to add to GameStart% for next entry - Length of index
+ 2550INDEXLEN%=56
+ 2560:
+ 2570REM *** Page Mode: 1=1 x 16k block needed : 2=2 x 16k blocks needed
+ 2580PM%=1
+ 2590:
+ 2600REM *** Page Mode data location as an Offset from GameStart%
+ 2610PMOFF%=46
+ 2620:
+ 2630REM *** Control Latch Data
+ 2640CL%=0
+ 2650:
+ 2660REM *** Page Latch Data
+ 2670PG%=0
+ 2680:
+ 2690REM *** Page Latch data location as an Offset from GameStart%
+ 2700PGOFF%=47
+ 2710:
+ 2720REM *** Load Method 0=Reset, 1=Chain, 2=Exc, 3=Run, 4=Loader, 5=Other
+ 2730LD%=0
+ 2740:
+ 2750REM *** Load Method data location as an Offset from GameStart%
+ 2760LDOFF%=49
+ 2770:
+ 2780REM *** ROM Attributes
+ 2790RA%=0
+ 2800RB%=0
+ 2810:
+ 2820REM *** ROM Attribute data location as an Offset from GameStart%
+ 2830RAOFF%=52
+ 2840RBOFF%=53
+ 2850:
+ 2860REM *** Publisher's name, first letter, as an Offset from GameStart%
+ 2870PNOFF%=48
+ 2880:
+ 2890REM *** Genre data location as an Offset from GameStart%
+ 2900GEOFF%=54
+ 2910:
+ 2920REM *** Search information: Entered as 1,2,3,4 Used as 0.1.2.3.
+ 2930Search%=0
+ 2940:
+ 2950REM *** ROM Table address for the Electron
+ 2960ROMTable%=&2A0
+ 2970:
+ 2980REM *** Game ROM type byte address, contents for ROM table
+ 2990Romtype%=&8006
+ 3000:
+ 3010REM *** Read from ROM: Y%=ROM# : X=# bytes to fetch : A%=fetch or display
+ 3020:
+ 3030REM *** A=1=fetch A=0=output to display
+ 3040DIMMC%35:REM Save 30 bytes
+ 3050:
+ 3060REM *** Start of m/c
+ 3070P%=MC%
+ 3080[OPT 0    
+ 3090CMP#0     
+ 3100BEQ P%+6  
+ 3110JSR&FFB9  
+ 3120RTS       
+ 3130.LP
+ 3140TXA       
+ 3150PHA       
+ 3160TYA       
+ 3170PHA       
+ 3180JSR&FFB9  
+ 3190JSR&FFEE  
+ 3200PLA       
+ 3210TAY       
+ 3220INC&F6    
+ 3230BNE P%+4  
+ 3240INC&F7    
+ 3250PLA       
+ 3260TAX       
+ 3270DEX       
+ 3280BNE LP    
+ 3290RTS      
+ 3300]
+ 3310:
+ 3320REM *** Locate the Cartridge
+ 3330PROCFindSlot
+ 3340:
+ 3350REM *** Load the total number of Games
+ 3360PROCLoadEntries
+ 3370:
+ 3380REM *** Allocate room for storage matrix
+ 3390DIMLOCATION%(18)
+ 3400:
+ 3410REM *** Start Location storage
+ 3420DIM NextAddress%(14)
+ 3430:
+ 3440REM *** Start Number of Entries storage
+ 3450DIM NumberOfEntries%(14)
+ 3460:
+ 3470REM *** Used to store value of SearchNumber2% for Page Back
+ 3480DIM SearchNumber2%(14)
+ 3490:
+ 3500REM *** Total Number of games found for Alpha or Publisher search
+ 3510DIM AlphaSearch%(TotalGames%)
+ 3520:
+ 3530ENDPROC
+ 3540:
+ 3550REM *** Fetch Count of Entries
+ 3560DEFPROCLoadEntries
+ 3570:
+ 3580REM *** Load, from the index, the total number of games
+ 3590A%=1:TotalGames%=FNrm(&8002,SLOT%)
+ 3600:
+ 3610REM *** Preload NumberOfEntries for initial listing
+ 3620NumberOfEntries%=TotalGames%
+ 3630:
+ 3640ENDPROC
+ 3650:
+ 3660REM *** Icrement to the next Entry
+ 3670DEFPROCAddressIncrement
+ 3680:
+ 3690REM *** Point to next entry in list
+ 3700NextAddress%=NextAddress%+INDEXLEN%
+ 3710:
+ 3720REM *** Decrement entries% counter
+ 3730IF Search%>0 THEN NumberOfEntries%=NumberOfEntries%-1
+ 3740:
+ 3750ENDPROC
+ 3760:
+ 3770REM *** Page Backwards calculations
+ 3780DEFPROCPageBack
+ 3790:
+ 3800DisplayPage%=DisplayPage%-1
+ 3810:
+ 3820NextAddress%=NextAddress%(DisplayPage%)
+ 3830:
+ 3840NumberOfEntries%=NumberOfEntries%(DisplayPage%)
+ 3850:
+ 3860SearchNumber2%=SearchNumber2%(DisplayPage%)
+ 3870:
+ 3880ENDPROC
+ 3890:
+ 3900REM *** ESCAPE key pressed
+ 3910GOTO40
+ 3920REM *** CLOSE
+ 3930DEFPROCSCAPE
+ 3940:
+ 3950REM *** Clear the bottom information line
+ 3960PRINTTAB(19,24)"                                                            ";
+ 3970:
+ 3980REM *** Turn on inverted text
+ 3990VDU17,0,17,129
+ 4000:
+ 4010REM *** Print message
+ 4020PRINTTAB(33,24)" Bye Bye ";
+ 4030:
+ 4040REM *** Turn off inverted text
+ 4050VDU17,1,17,128
+ 4060:
+ 4070REM *** Leave Bye Bye message for a short time
+ 4080PROCWAIT(5)
+ 4090:
+ 4100REM *** Turn on Cursor Editing
+ 4110*FX4,0
+ 4120:
+ 4130REM *** Turn on cursor
+ 4140VDU23,1,1;0;0;0;
+ 4150:
+ 4160REM *** Turn on the ADC sampling
+ 4170*FX163,128,1
+ 4180:
+ 4190REM *** Clear the screen
+ 4200CLS
+ 4210:
+ 4220REM *** Leave the cursor on second line - More visable!
+ 4230PRINTTAB(0,2);
+ 4240:
+ 4250REM *** Inform of no index if true
+ 4260IF F%=1 THEN PRINTTAB(35,2);"NO INDEX!"
+ 4270:
+ 4280END
+ 4290:
+ 4300REM Wait routine
+ 4310DEFPROCWAIT(U%)
+ 4320FORW%=0 TO 500*U%
+ 4330:
+ 4340NEXT W%
+ 4350:
+ 4360ENDPROC
+ 4370:
+ 4380REM *** Search for Alpha or Pub
+ 4390DEFPROCSORT
+ 4400ENDPROC
+ 4410:
+ 4420REM *** Search for Alpha
+ 4430DEFPROCSRCHALPHA
+ 4440:
+ 4450REM *** If no entries set for exit
+ 4460IF NumberOfEntries%<1 THEN LVALID%=1
+ 4470:
+ 4480REM *** Set for m/c read
+ 4490A%=1
+ 4500:
+ 4510REM *** If there are entries check fo selection match
+ 4520IF LVALID%=0 AND Search%=1 AND (FNrm(NextAddress%,SLOT%)=Selection%) THEN LVALID%=1
+ 4530:
+ 4540REM *** If no match found go and point to the next entry
+ 4550IF LVALID%=0 THEN PROCAddressIncrement
+ 4560:
+ 4570ENDPROC
+ 4580:
+ 4590REM *** Set-up Search options
+ 
+ 
+ 4600DEFPROCAlphaPubGen
+ 4610:
+ 4620REM *** Clear the top left information areas
+ 4630PRINTTAB(1,1)"                    ";:PRINTTAB(1,2)"                       ";
+ 4640:
+ 4650REM *** Clear bottom display area
+ 4660VDU28,0,22,79,20:CLS
+ 4670:
+ 4680REM *** Clear text window
+ 4690VDU28,14,19,64,3:CLS
+ 4700:
+ 4710REM *** If Genre selected go and list available Genres
+ 4720IF Search%=3 THEN PROCListGenre
+ 4730:
+ 4740REM *** Remove text windows
+ 4750VDU26
+ 4760:
+ 4770REM *** Turn on inverted text
+ 4780VDU17,0,17,129
+ 4790:
+ 4800REM *** Print slected choice - Alphabetically
+ 4810IF Search%=1 THEN PRINTTAB(19,23);" Games Alphabetically ";
+ 4820:
+ 4830REM *** Print slected choice - Publisher
+ 4840IF Search%=2 THEN PRINTTAB(19,23);" Games by Publisher ";
+ 4850:
+ 4860REM *** Print slected choice - Publisher
+ 4870IF Search%=3 THEN PRINTTAB(19,23);" Games by Genre ";
+ 4880:
+ 4890REM *** Print options - Alphabetically
+ 4900IF Search%=1 THEN PRINTTAB(19,24);" Chose #, Letter between A > Z or ";CHR$(225);" Back ";
+ 4910:
+ 4920REM *** Print options - Publisher
+ 4930IF Search%=2 THEN PRINTTAB(19,24);" Chose Letter between A > Z or ";CHR$(225);" Back ";
+ 4940:
+ 4950REM *** Print options - Genre
+ 4960IF Search%=3 THEN PRINTTAB(19,24);" Chose a Genre from above or ";CHR$(225);" Back ";
+ 4970:
+ 4980REM *** Turn off inverted text
+ 4990VDU17,1,17,128
+ 5000:
+ 5010REM *** Turn on the cursor
+ 5020VDU23,1,1;0;0;0;
+ 5030:
+ 5040REM *** Clear the Escape option
+ 5050PRINTTAB(67,24)"            ";
+ 5060:
+ 5070REM *** Set key-entry location - Alphabetically
+ 5080IF Search%=1 THEN PRINTTAB(61,24);
+ 5090:
+ 5100REM *** Set key-entry location - Publisher
+ 5110IF Search%=2 THEN PRINTTAB(58,24);
+ 5120:
+ 5130REM *** Set key-entry location - Genre
+ 5140IF Search%=3 THEN PRINTTAB(56,24);
+ 5150:
+ 5160REM *** Key entry for Search
+ 5170:
+ 5180REM *** Alphabetically
+ 5190IF Search%=1 THEN PROCKey1
+ 5200:
+ 5210REM *** Publisher
+ 5220IF Search%=2 THEN PROCKey2
+ 5230:
+ 5240REM *** Genre
+ 5250IF Search%=3 THEN PROCKey3
+ 5260:
+ 5270REM *** Turn off the cursor
+ 5280VDU23,1,0;0;0;0;
+ 5290:
+ 5300REM *** Show selection for short time - Alphabetically
+ 5310IF Search%=1 THEN PRINTTAB(61,24);CHR$(Selection%);:PROCWAIT(2)
+ 5320:
+ 5330REM *** Show selection for short time - Publisher
+ 5340IF Search%=2 THEN PRINTTAB(58,24);CHR$(Selection%);:PROCWAIT(2)
+ 5350:
+ 5360REM *** Show selection for short time - Genre
+ 5370IF Search%=3 THEN PRINTTAB(56,24);CHR$(Selection%);:PROCWAIT(2)
+ 5380:
+ 5390REM *** Clear key-entry location - Alphabetically
+ 5400IF Search%=1 THEN PRINTTAB(61,24)" ";
+ 5410:
+ 5420REM *** Clear key-entry location - Publisher
+ 5430IF Search%=2 THEN PRINTTAB(58,24)" ";
+ 5440:
+ 5450REM *** Clear key-entry location - Genre
+ 5460IF Search%=3 THEN PRINTTAB(56,24)" ";
+ 5470:
+ 5480REM *** Display "Searching" - Alphabetically
+ 5490IF Search%=1 THEN PRINTTAB(61,24)"Searching!";
+ 5500:
+ 5510REM *** Display "Searching" - Publisher
+ 5520IF Search%=2 THEN PRINTTAB(58,24)"Searching!";
+ 5530:
+ 5540REM *** Display "Searching" - Genre
+ 5550IF Search%=3 THEN PRINTTAB(56,24)"Searching!";
+ 5560:
+ 5570REM *** If BACK then exit
+ 5580IF Selection%=139 THEN PRINTTAB(56,24)"                ";:VDU28,14,19,64,3:CLS:VDU26:Selection%=239:ENDPROC
+ 5590:
+ 5600REM *** Find all that match the selection loop
+ 5610:
+ 5620REPEAT
+ 5630:
+ 5640REM *** Set for fetching from ROM
+ 5650A%=1
+ 5660:
+ 5670REM *** Search routines
+ 5680:
+ 5690IF Search%=1 AND Selection%<>35 THEN PROCFind1
+ 5700:
+ 5710IF Search%=1 AND Selection%=35 THEN PROCFind1A
+ 5720:
+ 5730IF Search%=2 THEN PROCFind2
+ 5740:
+ 5750IF Search%=3 THEN PROCFind3
+ 5760:
+ 5770REM *** Decrement number of entries
+ 5780NumberOfEntries%=NumberOfEntries%-1
+ 5790:
+ 5800REM *** Add index length to next address to point to next entry
+ 5810NextAddress%=NextAddress%+INDEXLEN%
+ 5820:
+ 5830REM *** Until entries equal 0
+ 5840UNTIL NumberOfEntries%<1
+ 5850:
+ 5860REM *** Load variables for displaying selected list
+ 5870NumberOfEntries%=SearchNumber%
+ 5880:
+ 5890REM *** Make a copy of SearchNumber for display purposes
+ 5900SearchNumber1%=SearchNumber%
+ 5910:
+ 5920REM *** Make a copy of Selection for display purposes
+ 5930Selection1%=Selection%
+ 5940:
+ 5950REM *** Remove "Searching"
+ 5960PRINTTAB(56,24)"               ";
+ 5970:
+ 5980REM *** Clear text window
+ 5990IF Search%=3 THEN VDU28,14,19,64,3:CLS:VDU26
+ 6000:
+ 6010REM *** For Genre convert Selection% into number
+ 6020IF Search%=3 THEN PROCGenreCount
+ 6030:
+ 6040ENDPROC
+ 6050:
+ 6060REM *** List Game Catagories
+ 6070DEFPROCListGenre
+ 6080:
+ 6090RESTORE 6110
+ 6100:
+ 6110DATA Adventure (graphics),Adventure (text),Adventure (txt/graph),Adventure (arcade),Avoid 'em,Ball Control,Ball Game,Bat 'n' Ball,Beat 'em Up,Board Game,Card Game,Catch 'em,Collect 'em Up,Driving,Educational,Football,Lunar Landing
+ 6120:
+ 6130DATA Maze,Platform,Puzzle,Quiz,RPG,Run 'n' Gun,Run 'n' Jump,Save 'em Up,Shooter,Simulation,Space,Sport,Strategy,Word Games,Traditional Games
+ 6140:
+ 6150REM *** Set AA% equal to start of line : AB% equal to list start number
+ 6160AA%=0
+ 6170:
+ 6180AB%=0
+ 6190:
+ 6200REPEAT
+ 6210:
+ 6220REM *** List Genres 0 to 9 in two colums
+ 6230READ I$
+ 6240:
+ 6250READ J$
+ 6260:
+ 6270PRINTTAB(0,AA%);AB%;" ";I$;
+ 6280:
+ 6290PRINTTAB(27,AA%);AB%+1;" ";J$;
+ 6300:
+ 6310AA%=AA%+1
+ 6320:
+ 6330AB%=AB%+2
+ 6340:
+ 6350UNTIL AA%=5
+ 6360:
+ 6370REM *** Set to "A" to list alphabelically
+ 6380AB%=65
+ 6390:
+ 6400REPEAT
+ 6410:
+ 6420READ I$
+ 6430:
+ 6440READ J$
+ 6450:
+ 6460PRINTTAB(0,AA%);CHR$(AB%);" ";I$;
+ 6470:
+ 6480PRINTTAB(27,AA%);CHR$(AB%+1);" ";J$;
+ 6490:
+ 6500AA%=AA%+1
+ 6510:
+ 6520AB%=AB%+2
+ 6530:
+ 6540UNTIL AA%=16
+ 6550:
+ 6560ENDPROC
+ 6570:
+ 6580REM *** OSRDRM Read a Byte from ROM
+ 6590REM *** Call with byte=FNrm(addr,rom)
+ 6600DEFFNrm(!&F6,Y%)=(USRMC%)AND&FF
+ 6610:
+ 6620REM *** List All Titles (Search%=0)
+ 6630DEFPROCDisplayList0
+ 6640:
+ 6650REM *** Enter with:
+ 6660REM *** NumberOfEntries% equal to total games
+ 6670REM *** NextAddress% equal to start of games list
+ 6680:
+ 6690REM Turn off Keyboard Scanning
+ 6700*FX178,0,0
+ 6710:
+ 6720REM *** Clear text window
+ 6730VDU28,14,19,64,3:CLS
+ 6740:
+ 6750REM *** StartLine%() equals the stored entry start address
+ 6760NextAddress%(DisplayPage%)=NextAddress%
+ 6770:
+ 6780REM *** PLINE% equals the printed line position
+ 6790PLINE%=0
+ 6800:
+ 6810REM *** StartNumber%() equals the stored number of entries
+ 6820NumberOfEntries%(DisplayPage%)=NumberOfEntries%
+ 6830:
+ 6840REM *** POSCHR%=Position of entry text when being displayed
+ 6850POSCHR%=0
+ 6860:
+ 6870REM *** LVALID% is set =1 if a valid line is found
+ 6880LVALID%=0
+ 6890:
+ 6900REM *** Main loop start
+ 6910REPEAT
+ 6920:
+ 6930REM *** Check if there is nothing to display
+ 6940IF NumberOfEntries%<1 AND PLINE%=0 THEN PRINTTAB(19,1)"No Entries!"
+ 6950:
+ 6960REM *** Print the letter for the next displayed line
+ 6970IF NumberOfEntries%>0 THEN PRINTTAB(0,PLINE%);CHR$(PLINE%+65);" ";
+ 6980:
+ 6990REM *** Print line to display via m/c
+ 6991IF NumberOfEntries%<1  THEN GOTO 6995 ELSE GOTO 6992
+ 6992 Y%=46: A%=0: X%=SLOT%
+ 6993 CALL &E00,NextAddress%,PLINE%
+ 6994REM *** Save the start address3 in the array and decrement entry count
+ 6995IF NumberOfEntries%>0 THEN LOCATION%(PLINE%)=NextAddress%:NumberOfEntries%=NumberOfEntries%-1:NextAddress%=NextAddress%+INDEXLEN%:PLINE%=PLINE%+1
+ 7000UNTIL(PLINE%=ScreenLines%) OR NumberOfEntries%<1 
+ 7080REM Turn on Keyboard Scanning
+ 7090*FX178,255,0
+ 7100:
+ 7110ENDPROC
+ 7120:
+ 7130REM *** List Alpha Titles (Search%=1)
+ 7140DEFPROCDisplayList123
+ 7150:
+ 7160REM *** Enter with:
+ 7170REM *** NumberOfEntries% equals number of entries found
+ 7180REM *** AlphaSearch() contains address of found entries
+ 7190REM *** SearchNumber equals counter for AlphaSearch()
+ 7200:
+ 7210REM Turn off Keyboard Scanning (Speed!)
+ 7220*FX178,0,0
+ 7230:
+ 7240REM *** Clear text window
+ 7250VDU28,14,19,64,3:CLS
+ 7260:
+ 7270REM *** StartLine%() equals the stored entry start address
+ 7280NextAddress%(DisplayPage%)=NextAddress%
+ 7290:
+ 7300REM *** NumberOfEntries%() equals the stored number of entries
+ 7310NumberOfEntries%(DisplayPage%)=NumberOfEntries%
+ 7320:
+ 7330REM *** StartNumber2%() equals the found number of entries
+ 7340SearchNumber2%(DisplayPage%)=SearchNumber2%
+ 7350:
+ 7360REM *** PLINE% equals the printed line position
+ 7370PLINE%=0
+ 7380:
+ 7390REM *** POSCHR%=Position of entry text when being displayed
+ 7400POSCHR%=0
+ 7410:
+ 7420REM *** LVALID% is set =1 if a valid line is found
+ 7430LVALID%=0
+ 7440:
+ 7450REM *** Loop start
+ 7460REPEAT
+ 7470:
+ 7480REM *** Check if there is nothing to display
+ 7490IF NumberOfEntries%<1 AND PLINE%=0 THEN PRINTTAB(19,1)"No Entries!";
+ 7500:
+ 7510REM *** Print the letter for the next displayed line
+ 7520IF NumberOfEntries%>0 THEN PRINTTAB(0,PLINE%);CHR$(PLINE%+65);" ";
+ 7530:
+ 7540REM *** Print line to display via m/c
+ 7550IF NumberOfEntries%>0 THEN X%=46:A%=0:?&F6=AlphaSearch%(SearchNumber2%):?&F7=AlphaSearch%(SearchNumber2%)DIV256:Y%=SLOT%:CALLMC%
+ 7560:
+ 7570REM *** Save the start address in the array and decrement entry count
+ 7580IF NumberOfEntries%>0 THEN LOCATION%(PLINE%)=NextAddress%:NumberOfEntries%=NumberOfEntries%-1:PLINE%=PLINE%+1:SearchNumber2%=SearchNumber2%+1
+ 7590:
+ 7600REM *** End of loop
+ 7610UNTIL(PLINE%=ScreenLines%) OR NumberOfEntries%<1
+ 7620:
+ 7630REM Turn on Keyboard Scanning
+ 7640*FX178,255,0
+ 7650:
+ 7660ENDPROC
+ 7670:
+ 7680REM *** Key entry procedure - Alphabetically
+ 7690DEFPROCKey1
+ 7700:
+ 7710REM *** Flush the keyboard buffer
+ 7720*FX21,0
+ 7730:
+ 7740REPEAT
+ 7750:
+ 7760REM *** Wait for key entry
+ 7770Selection%=GET
+ 7780:
+ 7790REM *** Until #, A to Z or BACK is selected - Alphabetically
+ 7800UNTIL Selection%=35 OR Selection%>64 AND Selection%<91 OR Selection%=139
+ 7810:
+ 7820ENDPROC
+ 7830:
+ 7840REM *** Key entry procedure - Publisher
+ 7850DEFPROCKey2
+ 7860:
+ 7870REPEAT
+ 7880:
+ 7890REM *** Flush the keyboard buffer
+ 7900*FX21,0
+ 7910:
+ 7920REM *** Wait for key entry
+ 7930Selection%=GET
+ 7940:
+ 7950REM *** Until #, A to Z or BACK is selected - Alphabetically
+ 7960UNTIL Selection%>64 AND Selection%<91 OR Selection%=139
+ 7970:
+ 7980ENDPROC
+ 7990:
+ 8000REM *** Key entry procedure - Genre
+ 8010DEFPROCKey3
+ 8020:
+ 8030REM *** Flush the keyboard buffer
+ 8040*FX21,0
+ 8050:
+ 8060REPEAT
+ 8070:
+ 8080REM *** Wait for key entry
+ 8090Selection%=GET
+ 8100:
+ 8110UNTILSelection%>47 AND Selection%<58 OR Selection%>64 AND Selection%<87 OR Selection%=139
+ 8120:
+ 8130ENDPROC
+ 8140:
+ 8150REM *** Find a match in the index and store its location - Alphabeticaly
+ 8160DEFPROCFind1
+ 8170IF FNrm(NextAddress%,SLOT%)=Selection% THEN AlphaSearch%(SearchNumber%)=NextAddress%:SearchNumber%=SearchNumber%+1
+ 8180:
+ 8190ENDPROC
+ 8200:
+ 8210REM *** Find a match in the index and store its location - Alph Numbers
+ 8220DEFPROCFind1A
+ 8230Find%=FNrm(NextAddress%,SLOT%)
+ 8240:
+ 8250IF Find%>47 AND Find%<58 THEN AlphaSearch%(SearchNumber%)=NextAddress%:SearchNumber%=SearchNumber%+1
+ 8260:
+ 8270ENDPROC
+ 8280:
+ 8290REM *** Find a match in the index and store its location - Publisher
+ 8300DEFPROCFind2
+ 8310:
+ 8320IF FNrm(NextAddress%+FNrm(NextAddress%+PNOFF%,SLOT%),SLOT%)=Selection% THEN AlphaSearch%(SearchNumber%)=NextAddress%:SearchNumber%=SearchNumber%+1
+ 8330:
+ 8340ENDPROC
+ 8350:
+ 8360REM *** Find a match in the index and store its location - Genre
+ 8370DEFPROCFind3
+ 8380:
+ 8390A%=1:IF FNrm(NextAddress%+GEOFF%,SLOT%)=Selection% THEN AlphaSearch%(SearchNumber%)=NextAddress%:SearchNumber%=SearchNumber%+1
+ 8400:
+ 8410A%=1:IF FNrm(NextAddress%+GEOFF%+1,SLOT%)=Selection% THEN AlphaSearch%(SearchNumber%)=NextAddress%:SearchNumber%=SearchNumber%+1
+ 8420:
+ 8430ENDPROC
+ 8440:
+ 8450REM *** Turn Selection into # from 0 to max # of Genre for Genra display
+ 8460DEFPROCGenreCount
+ 8470:
+ 8480REM *** Convert selections between 0 to 9
+ 8490IF Selection%>47 AND Selection%<58 THEN GenreSelection%=Selection%-48
+ 8500:
+ 8510REM *** Convert selections between A and last letter
+ 8520IF Selection%>64 AND Selection%<87 THEN GenreSelection%=Selection%-55
+ 8530:
+ 8540REM *** Find Genre selection
+ 8550RESTORE 6110:FOR M%=0 TO GenreSelection%:READ Genre$:NEXT
+ 8560:
+ 8570ENDPROC
+ 8580:
+ 8590REM **********************************************
+ 8600:
+ 8610REM *** Check which Slot the Cartridge is in
+ 8620DEFPROCFindSlot
+ 8630:
+ 8640REM *** Check if the cartridge is in slot 0 - Looking for 17 and A3
+ 8650A%=1:IF FNrm(&8000,0)<>&17 THEN GOTO 8690
+ 8660A%=1:IF FNrm(&8001,0)=&A3 THEN SLOT%=0:ENDPROC
+ 8670:
+ 8680REM *** Check if the cartridge is in slot 2 - Looking for 17 and A3
+ 8690A%=1:IF FNrm(&8000,2)<>&17 THEN GOTO 8730
+ 8700A%=1:IF FNrm(&8001,2)=&A3 THEN SLOT%=2:ENDPROC
+ 8710:
+ 8720REM *** If no index is found go to exit F%=1 displays "no index"
+ 8730F%=1:PROCSCAPE
+ 8740:
+ 8750REM *** Start the selected Game
+ 8760REM <<<<<<<<<<<<<DEFPROCGameStart and loader procs start here>>>>>>>>>>>

@@ -1,0 +1,103 @@
+; This file is part of JSNAKE,
+; A Snake clone game written for BBC B, B+ and Master 128.
+; http://www.retrosoftware.co.uk/jsnake
+;
+;
+; Written by jbnbeeb 2013
+;
+; To be assembled with Beebasm (by Richard Talbot-Watkins)
+; http://www.retrosoftware.co.uk/beebasm
+;
+;    
+
+;    This program is free software: you can redistribute it and/or modify
+;    it under the terms of the GNU General Public License as published by
+;    the Free Software Foundation, either version 3 of the License, or
+;    (at your option) any later version.
+
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;    GNU General Public License for more details.
+
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+
+
+;_____________________________________________________________________________
+;*******Macros for 16bit arithmetic.  Edited from maclib.inc file, as found at
+; http://www.obelisk.demon.co.uk/6502/downloads.html *************************
+;_____________________________________________________________________________
+
+
+
+
+
+
+MACRO DE16 dec_lo	
+		lda dec_lo
+		bne dedone	
+		dec dec_lo+1
+.dedone	
+		dec dec_lo
+ENDMACRO
+
+
+MACRO IN16 inc_lo
+		inc inc_lo
+		bne indone
+		inc inc_lo+1
+.indone	
+ENDMACRO
+
+
+MACRO SUB16 VLA, VLB, RES
+		SEC
+		LDA VLA+0
+		SBC VLB+0
+		STA RES+0
+		LDA VLA+1
+		SBC VLB+1
+		STA RES+1
+ENDMACRO
+
+
+MACRO ADD16	ad_A, ad_B, addRES
+		IF ad_A <> ad_B
+	 	 CLC
+	 	 LDA ad_A+0
+		 ADC ad_B+0
+		 STA addRES+0
+		 LDA ad_A+1
+		 ADC ad_B+1
+		 STA addRES+1
+		ELSE
+		 ARITHSL16 ad_A,addRES
+		ENDIF
+ENDMACRO
+
+MACRO ARITHSL16	ad_A, addRES
+		IF ad_A != addRES
+		 LDA ad_A+0
+		 ASL A
+		 STA addRES+0
+		 LDA ad_A+1
+		 ROL A
+		 STA addRES+1
+		ELSE
+		 ASL ad_A+0
+		 ROL ad_A+1
+		ENDIF
+ENDMACRO
+
+MACRO COMP16 VLA, VLB
+		LDA VLA+1
+		CMP VLB+1
+		BNE COMP16DONE
+		LDA VLA+0
+		CMP VLB+0
+.COMP16DONE
+ENDMACRO
+		

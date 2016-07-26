@@ -1,0 +1,243 @@
+INCLUDE ".\src\teqwormAcornConstants.txt"
+INCLUDE ".\src\jbnmaclib_mgc.6502"
+
+ELK = FALSE
+ORG &70
+.CharFontAddr SKIP 2
+.ScrAddrStart SKIP 2
+.ScrAddr	SKIP 2
+.Eight		SKIP 2
+.Ten SKIP 2
+.AndTwoEighty SKIP 2
+
+;storage for vars passed to asm routines from BASIC
+.aNextAddress SKIP 2  ;next address to read from ROM
+.aPLine SKIP 2 ; line number in menu, ascending from 0
+.aNumOfChars SKIP 1
+.aRomSlot	SKIP 1
+
+ VA_NextAddress = &601 ; VA_  = address of BASIC variable
+ VA_PLine		= &604 
+ 
+ORG &E00
+.start
+
+
+
+;.initcode
+; detect master or elk
+; find slot for index rom
+; find slot for games(?)
+; self mod rom switch sections of code
+
+ 
+
+\\__________________________________________________
+.InitFastPrint
+\\__________________________________________________
+
+\\ On entry (called from BASIC)
+\\ X = SLOT
+\\ Y = number of chars in menu row to print 	
+\\ NextAddress% address at &601
+\\ PLINE% address at &603
+
+
+	\\store vars passed to routine
+	sty aNumOfChars
+	;stx aRomSlot
+	ldx #2	:stx aRomSlot
+	lda VA_NextAddress :sta aNextAddress
+	lda VA_NextAddress+1 :sta aNextAddress+1
+	lda VA_PLine : sta aPLine
+	lda VA_PLine+1: sta aPLine+1
+	ldy #0
+	lda (aPLine),Y
+	\\If PLINE% = 0 reset routine scr addr vars to
+	\\top left of the menu
+	bne SkipScrAddrReset
+		lda #&00
+		sta ScrAddrStart
+		sta ScrAddr
+		lda #&48
+		sta ScrAddrStart+1
+		sta ScrAddr+1
+		
+	
+	.SkipScrAddrReset
+	
+	;if NumberofEntries<17.. store a copy of that number
+	; when NumberofEntries = 1 then write blank lines for
+	;17 - number lines and exit
+	
+		ldy #0
+		lda (aNextAddress),Y
+		sta sm_Char_To_Read+1
+		iny
+		lda (aNextAddress),Y
+		sta sm_Char_To_Read+2
+
+		\\&280 = advance one char row (80 chars)
+		lda #&80
+		sta AndTwoEighty
+		lda #2
+		sta AndTwoEighty+1
+		
+		lda #8
+		sta Eight
+		lda #0
+		sta Eight+1
+		;lda #10
+		;sta Ten
+		;lda #0
+		;sta Ten+1
+		
+	;.loopy
+	;jmp loopy
+	ldx aNumOfChars
+	jsr FastPrint
+	\\Store address for start of next row to display
+	ADD16 AndTwoEighty, ScrAddrStart, ScrAddrStart
+	
+rts
+
+
+ 
+ 
+	
+	
+\\ X= number of chars to display-1
+\\ place address of first char at sm_Char_To_Read
+
+\\__________________________________________________
+.FastPrint
+\\__________________________________________________
+
+\\ Prints a line of chars to screen
+\\ Does not use OSWRCH. Instead reads char fonts
+\\ from OS ROM a byte at a time and stores to screen.
+\\ Faster than OS to display chars, at the expense of
+\\ losing all VDU features including colour and TAB(X,Y).	
+	
+	lda ScrAddrStart
+	sta ScrAddr
+	lda ScrAddrStart+1
+	sta ScrAddr+1
+	
+	IF ELK
+	sei
+	lda #12
+	sta &f4
+	sta &fe05
+	
+	lda #0
+	sta &f4
+	sta &fe05
+	cli
+		ENDIF
+	
+	.FPloop
+		;switch in INDEX ROM
+	IF ELK
+	ELSE
+	sei
+		lda aRomSlot
+		sta &F4
+		sta &fe30
+		cli
+	ENDIF
+		
+		.sm_Char_To_Read
+			ldy &FFFF
+		
+		cpy #&20 ;if var <&20 (space), don't display it
+		bcc SkipDisplayChar
+		cpy #&FF
+		beq SkipDisplayChar
+		
+		lda FontAddrLo,Y
+		sta CharFontAddr
+		
+		lda FontAddrHi,Y
+		sta CharFontAddr+1
+	
+	IF ELK
+	;xx
+	ELSE
+	  sei
+		;switch in ANDY
+		lda #&8F
+	 
+		sta &f4
+		sta &FE30
+		cli
+	ENDIF
+		ldy #7
+		.DisplayCharLoop
+			lda (CharFontAddr),Y
+			sta (ScrAddr),Y
+			dey
+		bpl DisplayCharLoop
+		
+		.SkipDisplayChar
+			IN16 sm_Char_To_Read+1
+			ADD16 Eight, ScrAddr, ScrAddr
+		;jmp here 
+		dex
+	bne FPloop
+	.here
+	
+	;ADD16 Ten, sm_Char_To_Read+1, sm_Char_To_Read+1
+	;switch in BASIC
+	sei
+	IF ELK
+		;BASIC rom
+		lda #&b
+	ELSE
+		;BASIC rom
+		lda #&C
+	ENDIF 
+	sta &f4
+	IF ELK
+		sta &fe05
+	;nop
+	ELSE
+	sta &fe30
+	
+	ENDIF
+	cli
+rts
+
+	
+ORG &1100
+	.FontAddrLo
+	ORG &1120
+IF ELK
+	FOR n, &c000, &C2FF, 8
+		EQUB n MOD 256
+	NEXT
+ELSE
+	FOR n, &8900, &8BFF, 8
+		EQUB n MOD 256
+	NEXT
+ENDIF 
+
+
+	ORG &1200
+	.FontAddrHi	
+	ORG &1220
+IF ELK
+	FOR n, &C000, &C2FF, 8
+		EQUB n DIV 256
+	NEXT 
+ELSE
+	FOR n, &8900, &8BFF, 8
+		EQUB n DIV 256
+	NEXT 
+ENDIF
+	
+
+
+.end
+SAVE "mgcjbn", start, end
+PUTBASIC ".\src\MGCNORM", "MGCNORM"

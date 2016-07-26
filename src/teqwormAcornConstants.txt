@@ -1,0 +1,277 @@
+; This file is part of JBIP,
+; written for BBC B, B+ and Master 128.
+;  
+;
+; Written by jbnbeeb 2014
+;
+; To be assembled with Beebasm (by Richard Talbot-Watkins)
+; http://www.retrosoftware.co.uk/beebasm
+;
+;    
+
+;    This program is free software: you can redistribute it and/or modify
+;    it under the terms of the GNU General Public License as published by
+;    the Free Software Foundation, either version 3 of the License, or
+;    (at your option) any later version.
+
+;    This program is distributed in the hope that it will be useful,
+;    but WITHOUT ANY WARRANTY; without even the implied warranty of
+;    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;    GNU General Public License for more details.
+
+;    You should have received a copy of the GNU General Public License
+;    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+
+
+
+;
+; ****************** Operating system **********************
+ oswrch = &ffee  
+ osbyte= &fff4
+ osword =&fff1
+ osasci = &FFE3
+ osb_read_adc = &80
+ InteruptRequestVectorLow= &204   
+ InteruptRequestVectorHi= &205 
+; **************** end Operating System ********************
+
+                                       
+;*********************** Hardware **************************
+; 6845 Video Controller  FE00 TO FE01
+ CRTC_AccessRegister = &FE00
+ CRTC_RegisterValue =&FE01   
+ ACCCON =&FE34 ; access control register, shadow ram etc.
+
+; System VIA FE40 TO FE4F               
+ SysVIA_PortB =&FE40   ; lower 3 bits point to 8 bit addressable latch, 4th bit is the value to put in latch
+ SysVia_PortAHandshake =&FE41    
+ SysVIA_DataDirectionPortB =&FE42
+ SysVIA_DataDirectionPortA =&FE43
+ SysVIA_Timer1CounterLatchLow =&FE44  ; Read, get counter value, write set latch value
+ SysVIA_Timer1CounterLatchHi =&FE45   ; NB : 44,45 & 45,47 seem very similer and indeed are
+ SysVIA_Timer1LatchLow =&FE46      ; but fe46,47 do subtly different things, i.e. reading 46 does not rest Timer 1 Interupt flag
+ SysVIA_Timer1LatchHi =&FE47     ; see a 6522 description for more information. in general use 44,45
+ SysVIA_Timer2Low =&FE48
+ SysVIA_Timer2Hi =&FE49         ; Timer 2 is simpler, always resets it's interupts etc.
+ SysVIA_ShiftRegister =&FE4A
+ SysVIA_AuxControl =&FE4B
+ SysVIA_PeripheralControl =&FE4C
+ SysVIA_InteruptFlag =&FE4D
+ SysVIA_InteruptEnable =&FE4E
+ SysVIA_PortANoHandshake =&FE4F
+;********************* End Hardware ***********************
+              
+    
+ 
+
+ 
+	
+	
+	
+  
+	
+	AutoRptInitVal = 8
+	
+ 
+;states
+	
+	ST_ACCEL	= 1
+	ST_DECL		= 2
+	ST_ROTL1	= 3 
+	ST_CONSTVEL	= 4
+	ST_FIRE		= 5
+	ST_DIE		= 6
+	
+	ST_TAKEOFF	= 7
+	ST_TOACCEL	= 8
+	ST_TODECEL	= 9
+	
+	
+	ST_P_DEAD	  = 0
+	ST_P_DYING    = 1
+	ST_P_LIVE    = &2
+	ST_P_SPAWNING = 3
+	ST_P_SPAWNING_2 = 4 
+ 
+	ST_B_UNUSED	   = &80
+	ST_B_COLLIDING = &81
+	ST_B_LIVE      = &82
+	ST_B_SPAWNING  = &83
+ 
+	
+	NO_SPRITES	= 6 ; 2 player sprites, and up to 2 bullet sprites per player 
+	
+	
+	
+	ScreenStartHighByte = &40
+	
+	 
+	 
+	SPR_STRUCT_OFFSET_CONST = 70; size of spr structure in bytes
+ 
+	CmdLeft 	= %10000000
+	
+    CmdRight 	= %01000000
+	CmdUp		= %00100000
+	CmdDown		= %00010000
+	CmdFire		= %00001000
+ 
+	CmdLD       = %10010000
+	CmdLU		= %10100000
+	CmdRD		= %01010000
+	CmdRU		= %01100000
+	
+	P1RotL= &61 ;Z
+	P1RotR= &42 ;X
+	P1Accl= &43 ;F
+	P1Decl= &52 ;C
+	P1Fire= &53 ;G
+ 
+ 
+ 
+	pWriteStaticObj = 1
+	pWipeStaticObj  = 2
+	pWriteSprObj	= 3
+	pWipeSprObj		= 4
+
+;Tiles structure constants -  
+	
+	SS_SceneryTile_id 		= 0 ; 
+	SS_Columns 				= 1 ; (number of byte columns in tile)-1
+	SS_Rows					= 2 ; no of rows in pixels
+	SS_ColCounter			= 3 ; counter to track how many byte columns in to the tile we are when plotting
+	SS_CurrScrAddr			= 4 ; 
+	SS_LastScrAddr			= 6
+	SS_BottomOfThisColumn	= 8  ; no of bytes in to tile data from which to start plotting current byte column 
+	SS_TotalTilesCol		= 9  ; no of Tiles in this tile column 
+	SS_TileAddrStart		= 10 ; Addresses for each tile we are going to plot in the tile column.
+								; note we need an address for every "tile row" in the column.. so 
+								; duplicate entries would be needed if we wanted 3 tiles in a column, all of which
+								; were the same tile, e.g &3F00, &3F00, &3F00
+								; NOTE: &FFFF = dummy address to indicate a blank tile
+	
+	
+	
+	
+	\\ Used in RTW zero page sprite routine
+	spritevisiblewidth 		=  &57
+	spritevisibleheight 	=  &3 
+	spritebottomline 		=  &5 
+	read 					=  &7 
+	write 					=  &C 
+	mask 					=  &F 
+	writecopylo 			=  &20 
+	writecopyhi 			=  &29 
+	spriteheight 			=  &31 
+	spritewrapaddrhi 		=  &3F
+	PlotSprite  			=  &1
+
+
+   \\ SS [Sprite Structure] Types
+	   SS_T_Anim				= 0
+	   SS_T_NotAnim				= 1
+
+   \\ SS [Sprite Structure] variables   
+	   SS_write_sb1				= 0
+	   SS_background 			= 2		;  (background)         - address to save out background to
+	   SS_read 					= 3		;  (read)               - address of sprite data
+	   SS_writecopylo 			= 5		;  writecopylo          - copy of write
+	   SS_writecopyhi 			= 7		;  writecopyhi          - copy of write+1
+	   SS_spritevisiblewidth 	= 9		;  spritevisiblewidth   - number of byte columns to plot
+	   SS_spritevisibleheight 	= 10	;  spritevisibleheight  - visible height, minus 1
+	   SS_spriteheight 			= 11 	;  spriteheight         - physical height of sprite definition
+	   SS_spritebottomline 		= 12  	;  spritebottomline     - line within character row of bottom left of sprite (0-7)
+	   SS_spritewrapaddrhi 		= 13	;  spritewrapaddrhi     - MSB of lowest allowed screen address (before it wraps back to &8000)
+	   SS_YoYoDirFlag			= 14
+	   SS_Last_write_sb1 			= 15	;16 ;  previous screen address (first line of bottom left character row)
+	   SS_Last_bottomline		= 17
+	   
+	   SS_SprType				= 18 	; Animated /NOT animated 
+										;(SS_T_Anim / SS_T_NotAnim)
+	   SS_BackgroundData		= 19	; Target address BG fragment copy
+	   
+   
+   
+   \\ SS COLLISION MAP VARIABLES
+		SS_CM_SprWidth			= 20	; Sprite [char]width -1
+		SS_CM_SprHeight			= 21	; Sprite [char]height 
+		SS_CM_lastOrdX			= 23  	; - Bottom left X map ord of object
+		SS_CM_lastOrdY			= 24	; - Bottom left Y map ord of object
+		
+		SS_CM_lastWidth			= 25	;Obj Width [num of map cells across-1];W 
+										;and H [in char /map cell units)
+										;recorded in collision map will vary +-1 
+										;depending on whether the sprite
+										;is straddling a char row and/or collumn.
+										
+										
+		SS_CM_lastHeight 		= 26	; obj height [num of map cells high]
+		SS_CM_MapByte 			= 27	; the byte to "plot" at the given map ord
+		SS_CM_Xoffset 			= 28	; from left of spr
+		SS_CM_Yoffset 			= 29	; from bottom of spr
+	  
+		\\ SPRITE DATA POINTERS
+		
+		SS_Sb1_BackgroundData	= 30 	; Target address BG fragment copy for screen 1  
+		SS_Sb2_BackgroundData	= 32	; Target address BG fragment copy for screen 2
+		
+		SS_Sb1_SprDataTab_Ptr	= 34	; set to val of SS_SprDataNoOffset or SS_SprDataOffset
+		SS_Sb2_SprDataTab_Ptr	= 35	; set to val of SS_SprDataNoOffset or SS_SprDataOffset
+		
+		SS_SprDataTabPtr     	= 36	; "pointer" to Sprite Data address in table below
+		
+		
+		SS_SprDataNoOffsetTab	= 37	;37-46 = 4 addresses plus &FFFF eof list marker
+		SS_SprDataOffsetTab		= 47	;47-56 = 4 addresses plus &FFFF eof list marker
+		SS_Last_write_sb2		= 57;58
+		SS_write_sb2			= 59	;59,60  							
+		
+		
+		
+		
+		;**************REMOVE 
+		SS_SprDataTab			= 31 	; 32,33 34,  35,36,  37,38 ,39,40  ,39,40,41,42 
+										;(&FFFF = EOF table) 
+										;(so 4 max actual address, 
+										;plus EOF table marker)
+										
+		
+	  
+   
+   ;MO Types
+	   MO_T_Anim			= 0
+	   MO_T_NotAnim			= 1
+   
+    ;States
+		MO_S_LIVE 			= 0
+		MO_S_LIVECOLLIDING  = 1
+		MO_S_DEAD   		= 2
+   
+   ;Moving Object
+   MO_ID 			= 0
+   MO_Type 			= 1
+   MO_State 		= 2
+   MO_Energy		= 3
+   MO_DamageAmount	= 4
+   MO_Cmd			= 5
+   MO_MoveAmount	= 6 ; in..bytes? pixels?
+   MO_KeysDown		= 7
+   MO_TTL           = 8
+   MO_StateTTL		= 9
+
+   MO_SS_AddrTab    = 10;11  12;   13;  14  ;15,16  17, 
+   MO_LastCmd		= 18
+   
+   ;Static Object 
+   SO_ID			= 0
+   SO_Type			= 1 ; Type can also act as pointer into tiledata addr table
+   SO_Subtype		= 2;????? Doublewide !! :)
+   SO_State			= 3
+   SO_TTL			= 4
+   SO_DamageAmount	= 5
+   SO_TilePtr		= 6 ; ??? pointer to tile within tile column.
+   SO_TDaddr		= 7 ;  ??
+   
+	
