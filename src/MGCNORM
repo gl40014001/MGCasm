@@ -658,7 +658,7 @@
  6560ENDPROC
  6570:
  6580REM *** OSRDRM Read a Byte from ROM
- 6590REM *** Call with byte=FNrm(addr,rom)
+ 6590LOCAREM *** Call with byte=FNrm(addr,rom)
  6600DEFFNrm(!&F6,Y%)=(USRMC%)AND&FF
  6610:
  6620REM *** List All Titles (Search%=0)
@@ -690,21 +690,21 @@
  6880LVALID%=0
  6890:
  6900REM *** Main loop start
- 6910REPEAT
+ 6910REM REPEAT
  6920:
  6930REM *** Check if there is nothing to display
  6940IF NumberOfEntries%<1 AND PLINE%=0 THEN PRINTTAB(19,1)"No Entries!"
  6950:
  6960REM *** Print the letter for the next displayed line
- 6970IF NumberOfEntries%>0 THEN PRINTTAB(0,PLINE%);CHR$(PLINE%+65);" ";
+ 6970REM IF NumberOfEntries%>0 THEN PRINTTAB(0,PLINE%);CHR$(PLINE%+65);" ";
  6980:
  6990REM *** Print line to display via m/c
- 6991IF NumberOfEntries%<1  THEN GOTO 6995 ELSE GOTO 6992
+ 6991IF NumberOfEntries%<1  THEN GOTO 7080 ELSE GOTO 6992
  6992 Y%=46: A%=0: X%=SLOT%
- 6993 CALL &E00,NextAddress%,PLINE%
+ 6993 CALL &E00,NextAddress%,PLINE%,NumberOfEntries%,INDEXLEN%,ScreenLines%,LOCATION%(0)
  6994REM *** Save the start address3 in the array and decrement entry count
- 6995IF NumberOfEntries%>0 THEN LOCATION%(PLINE%)=NextAddress%:NumberOfEntries%=NumberOfEntries%-1:NextAddress%=NextAddress%+INDEXLEN%:PLINE%=PLINE%+1
- 7000UNTIL(PLINE%=ScreenLines%) OR NumberOfEntries%<1 
+ 6995REM IF NumberOfEntries%>0 THEN LOCATION%(PLINE%)=NextAddress%:NumberOfEntries%=NumberOfEntries%-1:NextAddress%=NextAddress%+INDEXLEN%:PLINE%=PLINE%+1
+ 7000REM UNTIL(PLINE%=ScreenLines%) OR NumberOfEntries%<1 
  7080REM Turn on Keyboard Scanning
  7090*FX178,255,0
  7100:

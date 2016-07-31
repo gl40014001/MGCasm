@@ -3,27 +3,53 @@ INCLUDE ".\src\jbnmaclib_mgc.6502"
 
 ELK = FALSE
 ORG &70
-.CharFontAddr SKIP 2
-.ScrAddrStart SKIP 2
-.ScrAddr	SKIP 2
-.Eight		SKIP 2
-.Ten SKIP 2
-.AndTwoEighty SKIP 2
+.CharFontAddr 			SKIP 2
+.ScrAddrStart 			SKIP 2
+.ScrAddr				SKIP 2
+.Eight					SKIP 2
+.AndTwoEighty 			SKIP 2
+.MenuOptionChar 		SKIP 1 ; letter printed to left of game
+;stoarage for vars passed to asm routines from BASIC
 
-;storage for vars passed to asm routines from BASIC
-.aNextAddress SKIP 2  ;next address to read from ROM
-.aPLine SKIP 2 ; line number in menu, ascending from 0
-.aNumOfChars SKIP 1
-.aRomSlot	SKIP 1
+\\__________________________________________________
+\\"a" prefix = zero page storage of address of 
+\\BASIC var passed via CALL within BASIC program
+\\__________________________________________________
+.aNextAddress 			SKIP 2  ;next address to read from ROM
+.aPLine 				SKIP 2 ; line number in menu, ascending from 0
 
- VA_NextAddress = &601 ; VA_  = address of BASIC variable
- VA_PLine		= &604 
+.aNumOfChars 			SKIP 1
+.aRomSlot				SKIP 1
+.aNumberofEntries 		SKIP 2
+.aINDEXLEN 				SKIP 2
+.aScreenLines 			SKIP 2
+.aLocation				SKIP 2
+.aAlphaSearch			SKIP 2
+
+\\__________________________________________________
+
+
+.vINDEXLEN 				SKIP 2
+.vNextAddress 			SKIP 2
+
+
+\\__________________________________________________
+\\ VA_  = aliases for variable addresses written to memory
+\\ &600 onwards by CALL from BASIC program
+\\__________________________________________________
+ VA_NextAddress 	= &601 ; VA_  = address of BASIC variable
+ VA_PLine			= &604 
+ 
+ VA_NumberofEntries = &607
+ VA_INDEXLEN		= &60A
+ VA_ScreenLines	    = &60D
+ VA_LOCATION 		= &610
  
 ORG &E00
 .start
 
 
-
+;**TO DO**
 ;.initcode
 ; detect master or elk
 ; find slot for index rom
@@ -36,69 +62,212 @@ ORG &E00
 .InitFastPrint
 \\__________________________________________________
 
+
 \\ On entry (called from BASIC)
-\\ X = SLOT
+\\ X = SLOT% 
 \\ Y = number of chars in menu row to print 	
 \\ NextAddress% address at &601
-\\ PLINE% address at &603
+\\ PLINE% address at &604
 
 
 	\\store vars passed to routine
 	sty aNumOfChars
-	;stx aRomSlot
-	ldx #2	:stx aRomSlot
-	lda VA_NextAddress :sta aNextAddress
-	lda VA_NextAddress+1 :sta aNextAddress+1
-	lda VA_PLine : sta aPLine
-	lda VA_PLine+1: sta aPLine+1
+	
+	;**FIX THIS*** stx aRomSlot
+	ldx #2	:				stx aRomSlot
+	
+ 	
+	lda VA_NextAddress :	sta aNextAddress
+	lda VA_NextAddress+1 :	sta aNextAddress+1
+	lda VA_PLine : 			sta aPLine
+	lda VA_PLine+1: 		sta aPLine+1
+	lda VA_NumberofEntries: sta aNumberofEntries
+	lda VA_NumberofEntries+1 : sta aNumberofEntries+1
+	lda VA_INDEXLEN		  : sta aINDEXLEN
+	lda VA_INDEXLEN+1	  : sta aINDEXLEN+1
+	lda VA_ScreenLines	  : sta aScreenLines
+	lda VA_ScreenLines+1  : sta aScreenLines+1
+	
+	
+	lda VA_LOCATION		  : sta aLocation
+	lda VA_LOCATION+1	  : sta aLocation+1
+	
+ 
+	
+	
+	\\&280 = advance one char row (80 chars)
+	lda #&80
+	sta AndTwoEighty
+	lda #2
+	sta AndTwoEighty+1
+	
+	\\used to advance scr address to next char in row
+	lda #8
+	sta Eight
+	lda #0
+	sta Eight+1
+	
+.DisplayMenuLineLoop
 	ldy #0
 	lda (aPLine),Y
 	\\If PLINE% = 0 reset routine scr addr vars to
 	\\top left of the menu
 	bne SkipScrAddrReset
-		lda #&00
+		\\ Reset menu option letter to A
+		lda #65 ;A
+		sta Letter
+
+		lda #&F0
 		sta ScrAddrStart
 		sta ScrAddr
-		lda #&48
+		lda #&47
 		sta ScrAddrStart+1
 		sta ScrAddr+1
 		
 	
 	.SkipScrAddrReset
 	
+	;MAYBE to do... 
 	;if NumberofEntries<17.. store a copy of that number
 	; when NumberofEntries = 1 then write blank lines for
 	;17 - number lines and exit
 	
-		ldy #0
-		lda (aNextAddress),Y
-		sta sm_Char_To_Read+1
-		iny
-		lda (aNextAddress),Y
-		sta sm_Char_To_Read+2
+		
+		\\Display Letter prep
+			;Letter to print next to game plus a space 
+			lda #Letter MOD 256
+			sta sm_Char_To_Read+1
+			lda #Letter DIV 256
+			sta sm_Char_To_Read+2
+			
+			ldx #2 		; 2 chars to display`
+			
+			jsr FastPrintLetter
+			inc Letter 	; next letter in alphabet for next time round
+		
+		\\Display game details next to letter (prep)
+			ldy #0
+			lda (aNextAddress),Y
+			sta sm_Char_To_Read+1
+			iny
+			lda (aNextAddress),Y
+			sta sm_Char_To_Read+2
 
-		\\&280 = advance one char row (80 chars)
-		lda #&80
-		sta AndTwoEighty
-		lda #2
-		sta AndTwoEighty+1
+			ldx aNumOfChars
+			jsr FastPrintGameInfo
+			\\Store address for start of next row to display
+			ADD16 AndTwoEighty, ScrAddrStart, ScrAddrStart
+			
+			
+		ldy #0
+		lda (aNumberofEntries),Y
 		
-		lda #8
-		sta Eight
-		lda #0
-		sta Eight+1
-		;lda #10
-		;sta Ten
-		;lda #0
-		;sta Ten+1
+		beq skipStoreAddrInArray
 		
-	;.loopy
-	;jmp loopy
-	ldx aNumOfChars
-	jsr FastPrint
-	\\Store address for start of next row to display
-	ADD16 AndTwoEighty, ScrAddrStart, ScrAddrStart
+		.StoreAddrInArray ; just a table that will be copied in to an array after the asm routine returns to BASIC
+			ldy #0
+			lda (aPLine),Y
+			beq skipASL
+				asl A: asl A
+				
+			.skipASL
+				pha
+				ldy #0 
+				lda (aNextAddress),Y
+				tax
+				pla
+				tay
+				pha
+				txa
+				sta (aLocation),Y
+				ldy #1
+				lda (aNextAddress),Y
+				tax
+				pla
+				tay
+				iny
+				txa
+				sta (aLocation),Y
+			
+			.skipStoreAddrInArray
+
+				\
+				\\**Fix for 16 bitval
+				ldy #0
+				lda (aNumberofEntries),Y
+				sec
+				sbc #1
+				sta (aNumberofEntries),Y
+				
+				\\Move ptr to next field in INDEX rom
+				\\ Copy address in to zp
+				\\ address. ADD16 macro needs absolute
+				\\ addresses to add and store values
+				ldy #0
+				lda (aNextAddress),Y
+				sta vNextAddress
+				iny
+				lda (aNextAddress),Y
+				sta vNextAddress+1
+				
+				ldy #0
+				lda (aINDEXLEN),Y
+				sta vINDEXLEN
+				
+				iny
+				lda (aINDEXLEN),Y
+				sta vINDEXLEN+1
+				
+				
+				
+				ADD16 vINDEXLEN,vNextAddress,vNextAddress
+				
+				\\store result in BASIC NextAddress% variable
+				ldy #0
+				lda vNextAddress
+				sta (aNextAddress),Y
+				iny
+				lda vNextAddress+1
+				sta (aNextAddress),Y
+				
+				ldy #0
+				lda (aPLine),Y
+				clc: adc #1
+				sta (aPLine),Y
+			
+				cmp (aScreenLines),Y
+				beq exitrtn
+				lda (aNumberofEntries),Y
+				beq exitrtn
+				jmp DisplayMenuLineLoop
+			
+		.exitrtn
+			
+							
+		
+		
+		
+\\Switch ROM back to BASIC
+.backtoBASIC	
+	sei
+	IF ELK
+		;BASIC rom
+		lda #&b
+	ELSE
+		;BASIC rom
+		lda #&C
+	ENDIF 
+	sta &f4
+	IF ELK
+		sta &fe05
+	;nop
+	ELSE
+	sta &fe30
 	
+	ENDIF
+	cli
+	
+	;UNTIL 	
 rts
 
 
@@ -109,8 +278,12 @@ rts
 \\ X= number of chars to display-1
 \\ place address of first char at sm_Char_To_Read
 
+;letter to print next to game plus a space 
+.Letter
+EQUB &0,&20
+
 \\__________________________________________________
-.FastPrint
+.FastPrintLetter ; (entering here starts displaying chars on next row)
 \\__________________________________________________
 
 \\ Prints a line of chars to screen
@@ -123,7 +296,7 @@ rts
 	sta ScrAddr
 	lda ScrAddrStart+1
 	sta ScrAddr+1
-	
+.FastPrintGameInfo ; entering here means we contine displaying chars on the same row (ie the game details next to the letter on the menu)	
 	IF ELK
 	sei
 	lda #12
@@ -149,6 +322,7 @@ rts
 		
 		.sm_Char_To_Read
 			ldy &FFFF
+		
 		
 		cpy #&20 ;if var <&20 (space), don't display it
 		bcc SkipDisplayChar
@@ -189,23 +363,7 @@ rts
 	
 	;ADD16 Ten, sm_Char_To_Read+1, sm_Char_To_Read+1
 	;switch in BASIC
-	sei
-	IF ELK
-		;BASIC rom
-		lda #&b
-	ELSE
-		;BASIC rom
-		lda #&C
-	ENDIF 
-	sta &f4
-	IF ELK
-		sta &fe05
-	;nop
-	ELSE
-	sta &fe30
 	
-	ENDIF
-	cli
 rts
 
 	
