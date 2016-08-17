@@ -73,7 +73,7 @@
   730PRINTTAB(19,23);"                      ";
   740:
   750REM *** Loop3
-  760:
+  760DEF
   770REM *** Clear bottom line request and display Exit Option
   780PRINTTAB(68,24)"(0 to EXIT)";:PRINTTAB(19,24)"     ";
   790:
@@ -173,6 +173,8 @@
  1730Selection%=Selection%-64
  1740:
  1750REM *** Call Game start procedure
+ 1751 P."D123:";TRES%
+ 1752 P."D0  :";DTRES%
  1760END: PROCGameStart
  1770REM <<<<<<<GameStart CALLED HERE>>>>>>> @@@@@@@@@@@@@@@@@
  1780END
@@ -489,13 +491,13 @@
  4870IF Search%=3 THEN PRINTTAB(19,23);" Games by Genre ";
  4880:
  4890REM *** Print options - Alphabetically
- 4900IF Search%=1 THEN PRINTTAB(19,24);" Chose #, Letter between A > Z or ";CHR$(225);" Back ";
+ 4900IF Search%=1 THEN PRINTTAB(19,24);" Choose #, Letter between A > Z or ";CHR$(225);" Back ";
  4910:
  4920REM *** Print options - Publisher
- 4930IF Search%=2 THEN PRINTTAB(19,24);" Chose Letter between A > Z or ";CHR$(225);" Back ";
+ 4930IF Search%=2 THEN PRINTTAB(19,24);" Choose Letter between A > Z or ";CHR$(225);" Back ";
  4940:
  4950REM *** Print options - Genre
- 4960IF Search%=3 THEN PRINTTAB(19,24);" Chose a Genre from above or ";CHR$(225);" Back ";
+ 4960IF Search%=3 THEN PRINTTAB(19,24);" Choose a Genre from above or ";CHR$(225);" Back ";
  4970:
  4980REM *** Turn off inverted text
  4990VDU17,1,17,128
@@ -522,7 +524,7 @@
  5200:
  5210REM *** Publisher
  5220IF Search%=2 THEN PROCKey2
- 5230:
+	5230:
  5240REM *** Genre
  5250IF Search%=3 THEN PROCKey3
  5260:
@@ -568,14 +570,24 @@
  5660:
  5670REM *** Search routines
  5680:
- 5690IF Search%=1 AND Selection%<>35 THEN PROCFind1
- 5700:
- 5710IF Search%=1 AND Selection%=35 THEN PROCFind1A
- 5720:
- 5730IF Search%=2 THEN PROCFind2
- 5740:
- 5750IF Search%=3 THEN PROCFind3
- 5760:
+ 5690REM IF Search%=1 AND Selection%<>35 THEN PROCFind1
+ 5700 REM IF Search%=1 AND Selection%=35 THEN PROCFind1A
+ 5710 IF Search%=1 THEN GOTO 5720 ELSE GOTO 5730
+ 5720 A%=2: X%=SLOT%:Y%=Selection%
+ 5721 CALL &E00,NextAddress%,NumberOfEntries%,INDEXLEN%,AlphaSearch%(0),SearchNumber%
+ 5722 GOTO 5840
+ 5723:
+ 5730 REM IF Search%=2 THEN PROCFind2
+ 5731 IF Search%=2 THEN GOTO 5735 ELSE GOTO 5760
+ 5735 A%=4:X%=SLOT%:Y%=Selection% 
+ 5740 CALL &E00,NextAddress%,NumberOfEntries%,INDEXLEN%,AlphaSearch%(0),SearchNumber%,PNOFF%
+ 5745 GOTO 5840 
+ 
+ 5750REM IF Search%=3 THEN PROCFind3
+ 5760 IF Search%=3 THEN GOTO 5765 ELSE GOTO 5780
+ 5765 A%=3:X%=SLOT%:Y%=Selection% 
+ 5766 CALL &E00,NextAddress%,NumberOfEntries%,INDEXLEN%,AlphaSearch%(0),SearchNumber%,GEOFF%
+ 5767 GOTO 5840 
  5770REM *** Decrement number of entries
  5780NumberOfEntries%=NumberOfEntries%-1
  5790:
@@ -699,7 +711,7 @@
  6970REM IF NumberOfEntries%>0 THEN PRINTTAB(0,PLINE%);CHR$(PLINE%+65);" ";
  6980:
  6990REM *** Print line to display via m/c
- 6991IF NumberOfEntries%<1  THEN GOTO 7080 ELSE GOTO 6992
+ 6991 TIME=0: DTSTART% = TIME: IF NumberOfEntries%<1  THEN GOTO 7080 ELSE GOTO 6992
  6992 Y%=46: A%=0: X%=SLOT%
  6993 CALL &E00,NextAddress%,PLINE%,NumberOfEntries%,INDEXLEN%,ScreenLines%,LOCATION%(0)
  6994REM *** Save the start address3 in the array and decrement entry count
@@ -707,7 +719,7 @@
  7000REM UNTIL(PLINE%=ScreenLines%) OR NumberOfEntries%<1 
  7080REM Turn on Keyboard Scanning
  7090*FX178,255,0
- 7100:
+ 7100 DTEND%= TIME: DTRES%= DTEND% - DTSTART%
  7110ENDPROC
  7120:
  7130REM *** List Alpha Titles (Search%=1)
@@ -737,32 +749,35 @@
  7370PLINE%=0
  7380:
  7390REM *** POSCHR%=Position of entry text when being displayed
- 7400POSCHR%=0
+ 7400REM POSCHR%=0
  7410:
  7420REM *** LVALID% is set =1 if a valid line is found
- 7430LVALID%=0
+ 7430REM LVALID%=0
  7440:
  7450REM *** Loop start
- 7460REPEAT
+ 7460REM REPEAT
  7470:
  7480REM *** Check if there is nothing to display
  7490IF NumberOfEntries%<1 AND PLINE%=0 THEN PRINTTAB(19,1)"No Entries!";
  7500:
  7510REM *** Print the letter for the next displayed line
- 7520IF NumberOfEntries%>0 THEN PRINTTAB(0,PLINE%);CHR$(PLINE%+65);" ";
+ 7520REM IF NumberOfEntries%>0 THEN PRINTTAB(0,PLINE%);CHR$(PLINE%+65);" ";
  7530:
  7540REM *** Print line to display via m/c
- 7550IF NumberOfEntries%>0 THEN X%=46:A%=0:?&F6=AlphaSearch%(SearchNumber2%):?&F7=AlphaSearch%(SearchNumber2%)DIV256:Y%=SLOT%:CALLMC%
+ 7550REM IF NumberOfEntries%>0 THEN X%=46:A%=0:?&F6=AlphaSearch%(SearchNumber2%):?&F7=AlphaSearch%(SearchNumber2%)DIV256:Y%=SLOT%:CALLMC%
+ 7551 TIME = 0: TSTART% = TIME :IF NumberOfEntries%>0 THEN GOTO 7552 ELSE GOTO 7640  
+ 7552 Y%=46: A%=1: X%=SLOT%
+ 7553 CALL &E00,NextAddress%,PLINE%,NumberOfEntries%,AlphaSearch%(0),ScreenLines%,LOCATION%(0),SearchNumber2%
  7560:
  7570REM *** Save the start address in the array and decrement entry count
- 7580IF NumberOfEntries%>0 THEN LOCATION%(PLINE%)=NextAddress%:NumberOfEntries%=NumberOfEntries%-1:PLINE%=PLINE%+1:SearchNumber2%=SearchNumber2%+1
+ 7580REM IF NumberOfEntries%>0 THEN LOCATION%(PLINE%)=NextAddress%:NumberOfEntries%=NumberOfEntries%-1:PLINE%=PLINE%+1:SearchNumber2%=SearchNumber2%+1
  7590:
  7600REM *** End of loop
- 7610UNTIL(PLINE%=ScreenLines%) OR NumberOfEntries%<1
- 7620:
+ 7610REM UNTIL(PLINE%=ScreenLines%) OR NumberOfEntries%<1
+ 7620 TEND% = TIME: TRES% = TEND% - TSTART%
  7630REM Turn on Keyboard Scanning
  7640*FX178,255,0
- 7650:
+ 7650
  7660ENDPROC
  7670:
  7680REM *** Key entry procedure - Alphabetically
@@ -814,22 +829,22 @@
  8140:
  8150REM *** Find a match in the index and store its location - Alphabeticaly
  8160DEFPROCFind1
- 8170IF FNrm(NextAddress%,SLOT%)=Selection% THEN AlphaSearch%(SearchNumber%)=NextAddress%:SearchNumber%=SearchNumber%+1
+ 8170REM:IF FNrm(NextAddress%,SLOT%)=Selection% THEN AlphaSearch%(SearchNumber%)=NextAddress%:SearchNumber%=SearchNumber%+1
  8180:
  8190ENDPROC
  8200:
  8210REM *** Find a match in the index and store its location - Alph Numbers
  8220DEFPROCFind1A
- 8230Find%=FNrm(NextAddress%,SLOT%)
+ 8230REM Find%=FNrm(NextAddress%,SLOT%)
  8240:
- 8250IF Find%>47 AND Find%<58 THEN AlphaSearch%(SearchNumber%)=NextAddress%:SearchNumber%=SearchNumber%+1
+ 8250REM IF Find%>47 AND Find%<58 THEN AlphaSearch%(SearchNumber%)=NextAddress%:SearchNumber%=SearchNumber%+1
  8260:
  8270ENDPROC
  8280:
  8290REM *** Find a match in the index and store its location - Publisher
  8300DEFPROCFind2
  8310:
- 8320IF FNrm(NextAddress%+FNrm(NextAddress%+PNOFF%,SLOT%),SLOT%)=Selection% THEN AlphaSearch%(SearchNumber%)=NextAddress%:SearchNumber%=SearchNumber%+1
+ 8320REM IF FNrm(NextAddress%+FNrm(NextAddress%+PNOFF%,SLOT%),SLOT%)=Selection% THEN AlphaSearch%(SearchNumber%)=NextAddress%:SearchNumber%=SearchNumber%+1
  8330:
  8340ENDPROC
  8350:

@@ -3,13 +3,12 @@ INCLUDE ".\src\jbnmaclib_mgc.6502"
 
 ELK = FALSE
 ORG &70
+
 .CharFontAddr 			SKIP 2
 .ScrAddrStart 			SKIP 2
 .ScrAddr				SKIP 2
 .Eight					SKIP 2
 .AndTwoEighty 			SKIP 2
-.MenuOptionChar 		SKIP 1 ; letter printed to left of game
-;stoarage for vars passed to asm routines from BASIC
 
 \\__________________________________________________
 \\"a" prefix = zero page storage of address of 
@@ -18,32 +17,36 @@ ORG &70
 .aNextAddress 			SKIP 2  ;next address to read from ROM
 .aPLine 				SKIP 2 ; line number in menu, ascending from 0
 
-.aNumOfChars 			SKIP 1
-.aRomSlot				SKIP 1
-.aNumberofEntries 		SKIP 2
-.aINDEXLEN 				SKIP 2
-.aScreenLines 			SKIP 2
-.aLocation				SKIP 2
-.aAlphaSearch			SKIP 2
+
+.aNumberofEntries 		SKIP 2 ;in menu to display
+.aINDEXLEN 				SKIP 2 ;length of menu text row in ROM
+.aScreenLines 			SKIP 2 ;max no. of menu lines per screen
+.aLocation				SKIP 2 ;array to store start addresses for each game displayed on this menu screen
+.aAlphaSearch			SKIP 2 ;array of start addresses for each game found via a search routine 
+
+
+aSearchNumber = &74 ; used in PROCAlphaPubGen as array index
+;aSearchNumber2 = &74 ;array index no. used to step through Alphasearch array
+ 
+
+vPublisherAddress = &76
+vPublisherFirstLetterAddress = &78
+vGenreAddress = &78
+aPNOFForGEOFF = &7C
 
 \\__________________________________________________
 
-
 .vINDEXLEN 				SKIP 2
 .vNextAddress 			SKIP 2
-
+.vPNorGEOFF				SKIP 2
+.aSearchNumber2			SKIP 2
 
 \\__________________________________________________
 \\ VA_  = aliases for variable addresses written to memory
 \\ &600 onwards by CALL from BASIC program
 \\__________________________________________________
- VA_NextAddress 	= &601 ; VA_  = address of BASIC variable
- VA_PLine			= &604 
  
- VA_NumberofEntries = &607
- VA_INDEXLEN		= &60A
- VA_ScreenLines	    = &60D
- VA_LOCATION 		= &610
+ 
  
 ORG &E00
 .start
@@ -56,27 +59,79 @@ ORG &E00
 ; find slot for games(?)
 ; self mod rom switch sections of code
 
- 
+\\store vars passed to routine
+	sta aRoutineOption
+	; 0 = Display0 (all games to be displayed)
+	; 1 = Display123 (display search results)
+	
+	\\ A=2 --> Search for first letter f Game    
+	\\ A=3 --> Search for first letter of Genre 
+	\\ A=4 --> Search for first letter of Publisher
+
+	
+	\\Store Y in both vars
+	\\Later, when we check A for which routine
+	\\the BASIC program wants to call, we'll
+	\\make sure we use the correct var! 
+	sty aNumOfChars 
+	sty aSelection  
+	
+	;**FIX THIS*** stx aRomSlot
+	ldx #0	:				stx aRomSlot
+	
+ 	cmp #2
+	bcc InitFastPrint
+	jmp InitFastFind
+
+	
+	
+	
 
 \\__________________________________________________
 .InitFastPrint
 \\__________________________________________________
 
+\\** Vars passed from DEFPRODCDisplay0 **
+	\\ On entry (called from BASIC)
+	\\ A = Routine to run
+	\\ X = SLOT% 
+	\\ Y = number of chars in menu row to print 	
 
-\\ On entry (called from BASIC)
-\\ X = SLOT% 
-\\ Y = number of chars in menu row to print 	
-\\ NextAddress% address at &601
-\\ PLINE% address at &604
+	\\ NextAddress% address at &601
+	\\ PLINE% address at &604
+	\\ NumberofEntries%
+	\\ INDEXLEN%
+	\\ ScreenLines%
+	\\ LOCATION%(0)
 
 
-	\\store vars passed to routine
-	sty aNumOfChars
+\\**Vars passed from DEFPROCDisplay123**
+	\\ On entry (called from BASIC)
+	\\ A = Routine to run
+	\\ X = SLOT% 
+	\\ Y = number of chars in menu row to print 	
+
+	\\ NextAddress% address at &601
+	\\ PLINE% address at &604
+	\\ NumberofEntries%
+	\\ AlphaSearch(0)
+	\\ ScreenLines%
+	\\ LOCATION%(0)
+	\\ SearchNumber2%
 	
-	;**FIX THIS*** stx aRomSlot
-	ldx #2	:				stx aRomSlot
 	
- 	
+	\\Display routine vars. Passed by DEFPROCDisplay0 and Display123
+	 VA_NextAddress 	= &601 ; VA_  = address of BASIC variable
+	 VA_PLine			= &604 
+	 VA_NumberofEntries = &607
+	 VA_INDEXLEN		= &60A
+	 VA_AlphaSearch		= &60A
+	 VA_ScreenLines	    = &60D
+	 VA_LOCATION 		= &610
+	 VA_SearchNumber2	= &613
+		
+		
+	
 	lda VA_NextAddress :	sta aNextAddress
 	lda VA_NextAddress+1 :	sta aNextAddress+1
 	lda VA_PLine : 			sta aPLine
@@ -86,15 +141,30 @@ ORG &E00
 	lda VA_INDEXLEN		  : sta aINDEXLEN
 	lda VA_INDEXLEN+1	  : sta aINDEXLEN+1
 	lda VA_ScreenLines	  : sta aScreenLines
-	lda VA_ScreenLines+1  : sta aScreenLines+1
-	
-	
+	lda VA_ScreenLines+1  : sta aScreenLines+1	
 	lda VA_LOCATION		  : sta aLocation
 	lda VA_LOCATION+1	  : sta aLocation+1
+		
 	
- 
+	
+	lda aRoutineOption; 
+		; 0 = Display0 (all games to be displayed)
+		; 1 = Display123 (display search results)
+		; 2 = SearchByGame (first letter)
+		; 3 = SearchByGenre (first letter)
+		; 4 = SearchByPublisher (first letter)
+	beq skipDisplay123vars
 	
 	
+	.Display123varsOnly
+		lda VA_AlphaSearch		:sta aAlphaSearch
+		lda VA_AlphaSearch+1	:sta aAlphaSearch+1
+		lda VA_SearchNumber2	:sta aSearchNumber2
+		lda VA_SearchNumber2+1	:sta aSearchNumber2+1
+	
+	.skipDisplay123vars
+		
+
 	\\&280 = advance one char row (80 chars)
 	lda #&80
 	sta AndTwoEighty
@@ -107,146 +177,34 @@ ORG &E00
 	lda #0
 	sta Eight+1
 	
-.DisplayMenuLineLoop
-	ldy #0
-	lda (aPLine),Y
-	\\If PLINE% = 0 reset routine scr addr vars to
-	\\top left of the menu
-	bne SkipScrAddrReset
-		\\ Reset menu option letter to A
-		lda #65 ;A
-		sta Letter
+	
 
-		lda #&F0
-		sta ScrAddrStart
-		sta ScrAddr
-		lda #&47
-		sta ScrAddrStart+1
-		sta ScrAddr+1
-		
+	\\__________________________________________________
+	.DisplayMenuLineLoop
+	\\__________________________________________________
 	
-	.SkipScrAddrReset
-	
-	;MAYBE to do... 
-	;if NumberofEntries<17.. store a copy of that number
-	; when NumberofEntries = 1 then write blank lines for
-	;17 - number lines and exit
-	
+		jsr DisplayMenuLine
+		jsr StoreAddrInArray
 		
-		\\Display Letter prep
-			;Letter to print next to game plus a space 
-			lda #Letter MOD 256
-			sta sm_Char_To_Read+1
-			lda #Letter DIV 256
-			sta sm_Char_To_Read+2
-			
-			ldx #2 		; 2 chars to display`
-			
-			jsr FastPrintLetter
-			inc Letter 	; next letter in alphabet for next time round
-		
-		\\Display game details next to letter (prep)
-			ldy #0
-			lda (aNextAddress),Y
-			sta sm_Char_To_Read+1
-			iny
-			lda (aNextAddress),Y
-			sta sm_Char_To_Read+2
+		lda aRoutineOption
+		bne skipMNAP
+		jsr MoveNextAddrPtr
 
-			ldx aNumOfChars
-			jsr FastPrintGameInfo
-			\\Store address for start of next row to display
-			ADD16 AndTwoEighty, ScrAddrStart, ScrAddrStart
-			
-			
+		.skipMNAP
+
 		ldy #0
+		lda (aPLine),Y
+		clc: adc #1
+		sta (aPLine),Y
+	
+		cmp (aScreenLines),Y
+		beq exitrtn
 		lda (aNumberofEntries),Y
-		
-		beq skipStoreAddrInArray
-		
-		.StoreAddrInArray ; just a table that will be copied in to an array after the asm routine returns to BASIC
-			ldy #0
-			lda (aPLine),Y
-			beq skipASL
-				asl A: asl A
-				
-			.skipASL
-				pha
-				ldy #0 
-				lda (aNextAddress),Y
-				tax
-				pla
-				tay
-				pha
-				txa
-				sta (aLocation),Y
-				ldy #1
-				lda (aNextAddress),Y
-				tax
-				pla
-				tay
-				iny
-				txa
-				sta (aLocation),Y
+		beq exitrtn
+		jmp DisplayMenuLineLoop
 			
-			.skipStoreAddrInArray
-
-				\
-				\\**Fix for 16 bitval
-				ldy #0
-				lda (aNumberofEntries),Y
-				sec
-				sbc #1
-				sta (aNumberofEntries),Y
-				
-				\\Move ptr to next field in INDEX rom
-				\\ Copy address in to zp
-				\\ address. ADD16 macro needs absolute
-				\\ addresses to add and store values
-				ldy #0
-				lda (aNextAddress),Y
-				sta vNextAddress
-				iny
-				lda (aNextAddress),Y
-				sta vNextAddress+1
-				
-				ldy #0
-				lda (aINDEXLEN),Y
-				sta vINDEXLEN
-				
-				iny
-				lda (aINDEXLEN),Y
-				sta vINDEXLEN+1
-				
-				
-				
-				ADD16 vINDEXLEN,vNextAddress,vNextAddress
-				
-				\\store result in BASIC NextAddress% variable
-				ldy #0
-				lda vNextAddress
-				sta (aNextAddress),Y
-				iny
-				lda vNextAddress+1
-				sta (aNextAddress),Y
-				
-				ldy #0
-				lda (aPLine),Y
-				clc: adc #1
-				sta (aPLine),Y
+	.exitrtn
 			
-				cmp (aScreenLines),Y
-				beq exitrtn
-				lda (aNumberofEntries),Y
-				beq exitrtn
-				jmp DisplayMenuLineLoop
-			
-		.exitrtn
-			
-							
-		
-		
-		
 \\Switch ROM back to BASIC
 .backtoBASIC	
 	sei
@@ -265,19 +223,186 @@ ORG &E00
 	sta &fe30
 	
 	ENDIF
-	cli
+	cli 	
+rts ; EXIT asm, back to BASIC program
+
+
+
+
+
 	
-	;UNTIL 	
+\\__________________________________________________
+.DisplayMenuLine
+\\__________________________________________________
+
+	ldy #0
+	lda (aPLine),Y
+	\\If PLINE% = 0 reset routine scr addr vars to
+	\\top left of the menu
+	bne SkipScrAddrReset
+		\\ Reset menu option letter to A
+		lda #65 ;A
+		sta Letter
+
+		lda #&F0
+		sta ScrAddrStart
+		sta ScrAddr
+		lda #&47
+		sta ScrAddrStart+1
+		sta ScrAddr+1
+		
+	
+	.SkipScrAddrReset
+				
+		\\Display Letter prep
+		lda #Letter MOD 256
+		sta sm_Char_To_Read+1
+		
+		lda #Letter DIV 256
+		sta sm_Char_To_Read+2
+		
+		ldx #2 		; 2 chars to display	
+		jsr FastPrintLetter
+		inc Letter 	; next letter in alphabet for next time round
+	
+		\\Display game details next to letter (prep)		
+		ldy aRoutineOption
+		bne notDisplay0
+		
+		.Display0 	
+			ldy #0
+			lda (aNextAddress),Y
+			sta sm_Char_To_Read+1
+			iny
+			lda (aNextAddress),Y
+			sta sm_Char_To_Read+2
+			jmp skipToFPGI
+			
+		.notDisplay0 ;Display123 
+			ldy #0
+			lda (aSearchNumber2),Y
+			beq skipnD0ASL
+				asl A: asl A
+				
+			.skipnD0ASL				
+				tay
+				lda (aAlphaSearch),Y
+				sta sm_Char_To_Read+1
+				iny
+				lda (aAlphaSearch),Y
+				sta sm_Char_To_Read+2
+				
+	.skipToFPGI
+		ldx aNumOfChars
+		jsr FastPrintGameInfo
+		\\Store address for start of next row to display
+		ADD16 AndTwoEighty, ScrAddrStart, ScrAddrStart
+	
 rts
-
-
- 
- 
+			
+		
+		
+		
+\\__________________________________________________
+.StoreAddrInArray 
+\\__________________________________________________
+	ldy #0
+	lda (aNumberofEntries),Y
+	bne SAIActd
+		jmp skipStoreAddrInArray	
 	
+	.SAIActd
+		ldy #0
+		lda (aPLine),Y
+		beq skipASL
+			asl A: asl A						
+	.skipASL
+		ldy aRoutineOption
+		bne SAIA_notDisplay0
+			pha
+			ldy #0 
+			lda (aNextAddress),Y
+			tax:pla:tay:pha:txa
+			sta (aLocation),Y
+			ldy #1
+			lda (aNextAddress),Y
+			tax:pla:tay:iny:txa
+			sta (aLocation),Y
+		jmp	decrementNoE 
 	
-\\ X= number of chars to display-1
-\\ place address of first char at sm_Char_To_Read
 
+		.SAIA_notDisplay0
+			pha
+			ldy #0 
+			lda (aAlphaSearch),Y
+			tax:pla:tay:pha:txa
+			sta (aLocation),Y
+			ldy #1
+			lda (aAlphaSearch),Y
+			tax:pla:tay:iny:txa
+			sta (aLocation),Y
+			
+			
+			ldy #0
+			lda (aSearchNumber2),Y
+			clc
+			adc #1
+			sta (aSearchNumber2),Y
+						
+			
+	.decrementNoE
+	.skipStoreAddrInArray
+		ldy #0
+		lda (aNumberofEntries),Y
+		sec
+		sbc #1
+		sta (aNumberofEntries),Y
+rts; StoreAddrInArray			
+		
+				
+				
+	
+\\__________________________________________________	
+.MoveNextAddrPtr
+\\__________________________________________________
+
+\\Move ptr to next menu row in INDEX rom
+
+
+	\\ Copy address in to zp
+	\\ address. ADD16 macro needs absolute
+	\\ addresses to add and store values
+
+	ldy #0
+	lda (aNextAddress),Y
+	sta vNextAddress
+	iny
+	lda (aNextAddress),Y
+	sta vNextAddress+1
+	
+	ldy #0
+	lda (aINDEXLEN),Y
+	sta vINDEXLEN
+	
+	iny
+	lda (aINDEXLEN),Y
+	sta vINDEXLEN+1
+	
+	ADD16 vINDEXLEN,vNextAddress,vNextAddress
+	
+	\\store result in BASIC NextAddress% array
+	ldy #0
+	lda vNextAddress
+	sta (aNextAddress),Y
+	iny
+	lda vNextAddress+1
+	sta (aNextAddress),Y
+rts
+		
+		
+		
+		
+		
 ;letter to print next to game plus a space 
 .Letter
 EQUB &0,&20
@@ -291,35 +416,40 @@ EQUB &0,&20
 \\ from OS ROM a byte at a time and stores to screen.
 \\ Faster than OS to display chars, at the expense of
 \\ losing all VDU features including colour and TAB(X,Y).	
+
+\\ Enter with X= number of chars to display-1
+\\ and place address of first char in row at sm_Char_To_Read
+
 	
 	lda ScrAddrStart
 	sta ScrAddr
 	lda ScrAddrStart+1
 	sta ScrAddr+1
+
 .FastPrintGameInfo ; entering here means we contine displaying chars on the same row (ie the game details next to the letter on the menu)	
 	IF ELK
-	sei
-	lda #12
-	sta &f4
-	sta &fe05
-	
-	lda #0
-	sta &f4
-	sta &fe05
-	cli
-		ENDIF
+		sei
+		lda #12
+		sta &f4
+		sta &fe05
+		
+		lda #0
+		sta &f4
+		sta &fe05
+		cli
+	ENDIF
 	
 	.FPloop
 		;switch in INDEX ROM
-	IF ELK
-	ELSE
-	sei
-		lda aRomSlot
-		sta &F4
-		sta &fe30
-		cli
-	ENDIF
-		
+		IF ELK
+		ELSE
+			sei
+			lda aRomSlot
+			sta &F4
+			sta &fe30
+			cli
+		ENDIF
+			
 		.sm_Char_To_Read
 			ldy &FFFF
 		
@@ -335,17 +465,18 @@ EQUB &0,&20
 		lda FontAddrHi,Y
 		sta CharFontAddr+1
 	
-	IF ELK
-	;xx
-	ELSE
-	  sei
-		;switch in ANDY
-		lda #&8F
-	 
-		sta &f4
-		sta &FE30
-		cli
-	ENDIF
+		IF ELK
+		;xx
+		ELSE
+			sei
+			;switch in ANDY if Master
+			lda #&8F
+		 
+			sta &f4
+			sta &FE30
+			cli
+		ENDIF
+
 		ldy #7
 		.DisplayCharLoop
 			lda (CharFontAddr),Y
@@ -356,43 +487,369 @@ EQUB &0,&20
 		.SkipDisplayChar
 			IN16 sm_Char_To_Read+1
 			ADD16 Eight, ScrAddr, ScrAddr
-		;jmp here 
 		dex
 	bne FPloop
-	.here
-	
-	;ADD16 Ten, sm_Char_To_Read+1, sm_Char_To_Read+1
-	;switch in BASIC
-	
 rts
 
+
+
+
+
+
+
+
+\\__________________________________________________
+.InitFastFind
+\\__________________________________________________
+
+\\Search routine variables. Passed via DEFPROCAlphaPubGen 
+
+
+\\**Vars passed in order from DEFPROCAlphaPubGen**
+	\\ On entry (called from BASIC)
+	\\ A = Routine to run
+	\\ X = SLOT% 
+	\\ Y = Selection%
+	\\ NextAddress%
+	\\ NumberofEntries%
+	\\ INDEXLEN%
+	\\ AlphaSearch%(0)
+	\\ SearchNumber%
+	\\ PNOFF% or GEOFF%
+	VA_A_NextAddress 		= &601
+	VA_A_NumberofEntries 	= &604 
+	VA_A_INDEXLEN			= &607	
+	VA_A_AlphaSearch		= &60A
+	VA_A_SearchNumber		= &60D ; array index
+	VA_A_PNOFForGEOFF		= &610 ; Genre offset
+		
+	lda VA_A_NextAddress 		: sta aNextAddress
+	lda VA_A_NextAddress+1		: sta aNextAddress+1
+	lda VA_A_INDEXLEN			: sta aINDEXLEN
+	lda VA_A_INDEXLEN+1			: sta aINDEXLEN+1
+	lda VA_A_AlphaSearch		: sta aAlphaSearch
+	lda VA_A_AlphaSearch+1		: sta aAlphaSearch+1
+	lda VA_A_SearchNumber		: sta aSearchNumber
+	lda VA_A_SearchNumber+1		: sta aSearchNumber+1	
+	lda VA_A_PNOFForGEOFF		: sta aPNOFForGEOFF
+	lda VA_A_PNOFForGEOFF+1		: sta aPNOFForGEOFF+1
+
 	
-ORG &1100
+;...
+
+	ldy #0
+	lda (aNextAddress),Y
+	sta vNextAddress
+	iny
+	lda (aNextAddress),Y
+	sta vNextAddress+1
+	
+	ldy #0
+	lda (aPNOFForGEOFF),Y
+	sta vPNorGEOFF
+	sty vPNorGEOFF+1
+
+
+
+
+
+\\__________________________________________________
+.SearchManager
+\\__________________________________________________	
+	
+	
+	IF ELK
+		sei
+		lda #12
+		sta &f4
+		sta &fe05
+		
+		lda #0
+		sta &f4
+		sta &fe05
+		cli
+	ENDIF
+	
+	;switch in INDEX ROM
+	IF ELK
+	ELSE
+		sei
+		lda aRomSlot
+		sta &F4
+		sta &fe30
+		cli
+	ENDIF
+	
+	lda aSelection
+	sta sm_FFG_CharToFind+1  ; game
+	sta sm_FFGe_CharToFind+1 ; genre
+	sta sm_FFGe2nd_CharToFind+1
+	sta sm_FFP_CharToFind+1  ; publisher
+
+	
+	lda aRoutineOption
+	cmp #2: bne not2
+		jsr SearchByGame: jmp SkipStuff
+	.not2
+	cmp #3: bne not3
+		jsr SearchByGenre: jmp SkipStuff
+	.not3
+		jsr SearchByPublisher
+	.SkipStuff	
+	
+jmp backtoBASIC		
+
+
+	\\__________________________________________________
+	.SearchByGame
+	\\__________________________________________________
+		.loopFFG
+			jsr FastFindGame 
+			bne FFG_NoCharMatch
+				jsr StoreAddrInAlphaArray
+				ldy #0
+				lda (aSearchNumber),Y
+				clc
+				adc #1
+				sta (aSearchNumber),Y
+			.FFG_NoCharMatch
+			
+			jsr MoveNextAddrPtr
+			jsr decrementNoE
+			ldy #0
+			lda (aNumberofEntries),Y
+			beq exit_loopFFG
+		jmp loopFFG
+		
+		.exit_loopFFG
+	rts
+	
+	
+	
+	\\__________________________________________________
+	.SearchByGenre
+	\\__________________________________________________
+		
+		.loopFFGe
+			
+			jsr FastFindGenre
+			bne FFGe_NoCharMatch
+				jsr StoreAddrInAlphaArray
+				ldy #0
+				lda (aSearchNumber),Y
+				clc
+				adc #1
+				sta (aSearchNumber),Y
+			.FFGe_NoCharMatch		
+				jsr MoveNextAddrPtr
+				jsr decrementNoE
+				ldy #0
+				lda (aNumberofEntries),Y
+			beq exit_loopFFGe
+		jmp loopFFGe
+		
+		.exit_loopFFGe
+	rts
+				
+	
+	\\__________________________________________________
+	.SearchByPublisher
+	\\__________________________________________________
+		.loopFFP
+			jsr FastFindPub
+			bne FFP_NoCharMatch
+				jsr StoreAddrInAlphaArray
+				ldy #0
+				lda (aSearchNumber),Y
+				clc
+				adc #1
+				sta (aSearchNumber),Y
+			.FFP_NoCharMatch
+				jsr MoveNextAddrPtr
+				jsr decrementNoE
+				ldy #0
+				lda (aNumberofEntries),Y
+				beq exit_loopFFP
+			jmp loopFFP
+		
+		.exit_loopFFP
+	rts
+	
+	\\ add Pub to Next Addr
+	\\ stas vPublisherAddress
+	\\ 
+	\\.loop
+	\\ jsr FastFindPub
+	\\ if 0 ..	
+	\\ jsr StoreAddrInAlphaArray
+	\\ jsr MoveNextAddrPtr
+	\\ inc SearchNumberxx??
+	\\ dec aNumberofEntries
+	\\ beq exit..
+	\\ jmp loop
+	\\jsr storeNextAddr final result
+	
+	
+		;
+	
+
+\\__________________________________________________
+.FastFindGame
+\\__________________________________________________
+	
+	\\Compare Char at address with 
+	\\char to find
+	
+	\\On first entry:
+	\\store ASCII char value at sm_FFG_CharToFind+1
+	
+	\\On exit:
+	\\A = 0 if char at NextAddress matches
+	\\A>0 if no match
+	
+	ldy #0
+	lda (aNextAddress),Y
+	sta sm_NA+1
+	iny
+	lda (aNextAddress),Y
+	sta sm_NA+2
+	
+	.sm_NA
+		lda &FFFF
+		
+	.sm_FFG_CharToFind
+		cmp #&FF
+		
+rts
+
+\\__________________________________________________
+.FastFindGenre
+\\__________________________________________________
+
+	\\Compare Char at address with 
+	\\char to find
+	
+	\\On first entry:
+	\\store ASCII char value at sm_FFGe_CharToFind+1
+
+	\\On exit:
+	\\A = 0 if char at NextAddress matches
+	\\A>0 if no match
+	
+	ADD16 vPNorGEOFF,vNextAddress,vGenreAddress
+	
+	ldy #0
+	lda (vGenreAddress),Y
+	
+	.sm_FFGe_CharToFind
+		cmp #&FF
+		beq skip2ndGenre
+	ldy #1
+	
+	lda (vGenreAddress),Y
+	.sm_FFGe2nd_CharToFind
+		cmp #&FF
+	
+	.skip2ndGenre
+rts
+
+
+\\__________________________________________________	
+.FastFindPub
+\\__________________________________________________
+	
+	\\Compare Char at address with 
+	\\char to find
+	
+	\\On first entry:
+	\\store ASCII char value at sm_FFP_CharToFind+1
+
+	\\On exit:
+	\\A = 0 if char at NextAddress matches
+	\\A>0 if no match
+	
+	
+
+	ADD16 vPNorGEOFF,vNextAddress,vPublisherAddress
+	
+	ldy #0
+	lda (vPublisherAddress),Y
+	sta vPublisherFirstLetterAddress
+	sty vPublisherFirstLetterAddress+1 ;store pub offset from NextAddress
+	
+	ADD16 vNextAddress,vPublisherFirstLetterAddress,vPublisherFirstLetterAddress ;Add pub offset to NextAddress and store it
+	
+	ldy #0
+	lda (vPublisherFirstLetterAddress),Y
+	
+	.sm_FFP_CharToFind
+		cmp #&FF
+rts
+	
+	
+	
+
+
+
+
+\\__________________________________________________
+.StoreAddrInAlphaArray 
+\\__________________________________________________
+		
+	ldy #0
+	lda (aSearchNumber),Y
+	beq skipAlphaASL
+		asl A: asl A						
+	.skipAlphaASL
+		pha
+		ldy #0 
+		lda (aNextAddress),Y
+		tax:pla:tay:pha:txa
+		sta (aAlphaSearch),Y
+		ldy #1
+		lda (aNextAddress),Y
+		tax:pla:tay:iny:txa
+		sta (aAlphaSearch),Y
+					
+rts; StoreAlphaAddrInArray			
+		
+
+
+
+	
+ORG &1200
 	.FontAddrLo
-	ORG &1120
-IF ELK
-	FOR n, &c000, &C2FF, 8
-		EQUB n MOD 256
-	NEXT
-ELSE
-	FOR n, &8900, &8BFF, 8
-		EQUB n MOD 256
-	NEXT
-ENDIF 
+	.aRoutineOption		SKIP 1
+	.aNumOfChars 		SKIP 1
+	.aRomSlot	 		SKIP 1
+	.aSelection			SKIP 1
+ORG &1220
+
+	IF ELK
+		FOR n, &c000, &C2FF, 8
+			EQUB n MOD 256
+		NEXT
+	ELSE
+		FOR n, &8900, &8BFF, 8
+			EQUB n MOD 256
+		NEXT
+	ENDIF 
 
 
-	ORG &1200
+ORG &1300
 	.FontAddrHi	
-	ORG &1220
-IF ELK
-	FOR n, &C000, &C2FF, 8
-		EQUB n DIV 256
-	NEXT 
-ELSE
-	FOR n, &8900, &8BFF, 8
-		EQUB n DIV 256
-	NEXT 
-ENDIF
+
+ORG &1320
+
+	IF ELK
+		FOR n, &C000, &C2FF, 8
+			EQUB n DIV 256
+		NEXT 
+	ELSE
+		FOR n, &8900, &8BFF, 8
+			EQUB n DIV 256
+		NEXT 
+	ENDIF
 	
 
 

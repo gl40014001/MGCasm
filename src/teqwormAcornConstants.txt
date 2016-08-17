@@ -64,7 +64,11 @@
 ;********************* End Hardware ***********************
               
     
- 
+DISP_ALL_GAMES = 0
+DISP_SEARCH_RESULTS = 1
+FIND_GAME = 2
+FIND_GENRE = 3
+FIND_PUBLISHER = 4   
 
  
 	

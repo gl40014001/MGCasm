@@ -1,0 +1,1 @@
+beebasm -i .\src\mgcjbn.6502 -di .\bin\Menu50C.ssd -do .\bin\mgcjbn.ssd -v  
