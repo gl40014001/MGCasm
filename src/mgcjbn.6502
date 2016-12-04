@@ -1,7 +1,9 @@
 INCLUDE ".\src\teqwormAcornConstants.txt"
 INCLUDE ".\src\jbnmaclib_mgc.6502"
 
-ELK = FALSE
+OSBYTE    = &fff4
+	
+ELK = TRUE
 ORG &70
 
 .CharFontAddr 			SKIP 2
@@ -75,14 +77,16 @@ ORG &E00
 	\\make sure we use the correct var! 
 	sty aNumOfChars 
 	sty aSelection  
+	stx aRomSlot
 	
-	;**FIX THIS*** stx aRomSlot
-	ldx #0	:				stx aRomSlot
+	jsr GetOSVer 
+	jsr CreateFontAddrLookupTable
 	
+	lda aRoutineOption
  	cmp #2
 	bcc InitFastPrint
 	jmp InitFastFind
-
+		
 	
 	
 	
@@ -119,9 +123,11 @@ ORG &E00
 	\\ LOCATION%(0)
 	\\ SearchNumber2%
 	
+
 	
 	\\Display routine vars. Passed by DEFPROCDisplay0 and Display123
-	 VA_NextAddress 	= &601 ; VA_  = address of BASIC variable
+	
+ 	 VA_NextAddress 	= &601 ; VA_  = address of BASIC variable
 	 VA_PLine			= &604 
 	 VA_NumberofEntries = &607
 	 VA_INDEXLEN		= &60A
@@ -184,8 +190,7 @@ ORG &E00
 	\\__________________________________________________
 	
 		jsr DisplayMenuLine
-		jsr StoreAddrInArray
-		
+		jsr StoreAddrInArray	
 		lda aRoutineOption
 		bne skipMNAP
 		jsr MoveNextAddrPtr
@@ -207,23 +212,20 @@ ORG &E00
 			
 \\Switch ROM back to BASIC
 .backtoBASIC	
-	sei
-	IF ELK
-		;BASIC rom
-		lda #&b
-	ELSE
-		;BASIC rom
-		lda #&C
-	ENDIF 
-	sta &f4
-	IF ELK
-		sta &fe05
-	;nop
-	ELSE
-	sta &fe30
 	
-	ENDIF
-	cli 	
+	lda ELKORBEEB
+	bne MasterBASICROM
+	.ElkBASICROM
+		lda #&b
+		sta &f4
+		sta &fe05
+rts	
+	.MasterBASICROM	;BASIC rom
+		lda #&C
+		sta &f4
+		sta &fe30
+	
+	 	
 rts ; EXIT asm, back to BASIC program
 
 
@@ -427,29 +429,27 @@ EQUB &0,&20
 	sta ScrAddr+1
 
 .FastPrintGameInfo ; entering here means we contine displaying chars on the same row (ie the game details next to the letter on the menu)	
-	IF ELK
-		sei
-		lda #12
-		sta &f4
-		sta &fe05
-		
-		lda #0
-		sta &f4
-		sta &fe05
-		cli
-	ENDIF
 	
 	.FPloop
+		
+		lda ELKORBEEB
+		bne MasterSlot
+		.ElkSlot	
+			lda #12
+			sta &f4
+			sta &fe05
+			
+			lda aRomSlot
+			sta &f4
+			sta &fe05
+		jmp sm_Char_To_Read
+		
 		;switch in INDEX ROM
-		IF ELK
-		ELSE
-			sei
+		.MasterSlot 
 			lda aRomSlot
 			sta &F4
 			sta &fe30
-			cli
-		ENDIF
-			
+		
 		.sm_Char_To_Read
 			ldy &FFFF
 		
@@ -465,18 +465,13 @@ EQUB &0,&20
 		lda FontAddrHi,Y
 		sta CharFontAddr+1
 	
-		IF ELK
-		;xx
-		ELSE
-			sei
-			;switch in ANDY if Master
+		lda ELKORBEEB
+		beq skipANDY
 			lda #&8F
-		 
 			sta &f4
 			sta &FE30
-			cli
-		ENDIF
-
+			
+		.skipANDY
 		ldy #7
 		.DisplayCharLoop
 			lda (CharFontAddr),Y
@@ -534,6 +529,7 @@ rts
 	lda VA_A_PNOFForGEOFF		: sta aPNOFForGEOFF
 	lda VA_A_PNOFForGEOFF+1		: sta aPNOFForGEOFF+1
 
+	jsr GetOSVer 
 	
 ;...
 
@@ -558,28 +554,25 @@ rts
 \\__________________________________________________	
 	
 	
-	IF ELK
-		sei
+	
+	lda ELKORBEEB
+	bne SMMasterSlot
 		lda #12
 		sta &f4
 		sta &fe05
 		
-		lda #0
+		lda aRomSlot
 		sta &f4
 		sta &fe05
-		cli
-	ENDIF
+	jmp skipSMMS	
 	
 	;switch in INDEX ROM
-	IF ELK
-	ELSE
-		sei
+	.SMMasterSlot
 		lda aRomSlot
 		sta &F4
 		sta &fe30
-		cli
-	ENDIF
 	
+	.skipSMMS
 	lda aSelection
 	sta sm_FFG_CharToFind+1  ; game
 	sta sm_FFGe_CharToFind+1 ; genre
@@ -589,22 +582,29 @@ rts
 	
 	lda aRoutineOption
 	cmp #2: bne not2
-		jsr SearchByGame: jmp SkipStuff
+		lda #FastFindGame MOD 256 :sta sm_FFrtn+1
+		lda #FastFindGame DIV 256 :sta sm_FFrtn+2 
+		jsr SearchLoop: jmp SkipStuff
 	.not2
 	cmp #3: bne not3
-		jsr SearchByGenre: jmp SkipStuff
+		lda #FastFindGenre MOD 256 :sta sm_FFrtn+1
+		lda #FastFindGenre DIV 256 :sta sm_FFrtn+2 
+		jsr SearchLoop: jmp SkipStuff
 	.not3
-		jsr SearchByPublisher
+		lda #FastFindPub MOD 256 :sta sm_FFrtn+1
+		lda #FastFindPub DIV 256 :sta sm_FFrtn+2 
+		jsr SearchLoop
 	.SkipStuff	
 	
 jmp backtoBASIC		
 
 
 	\\__________________________________________________
-	.SearchByGame
+	.SearchLoop
 	\\__________________________________________________
 		.loopFFG
-			jsr FastFindGame 
+			.sm_FFrtn
+				jsr &FFFF 
 			bne FFG_NoCharMatch
 				jsr StoreAddrInAlphaArray
 				ldy #0
@@ -625,73 +625,7 @@ jmp backtoBASIC
 	rts
 	
 	
-	
-	\\__________________________________________________
-	.SearchByGenre
-	\\__________________________________________________
-		
-		.loopFFGe
-			
-			jsr FastFindGenre
-			bne FFGe_NoCharMatch
-				jsr StoreAddrInAlphaArray
-				ldy #0
-				lda (aSearchNumber),Y
-				clc
-				adc #1
-				sta (aSearchNumber),Y
-			.FFGe_NoCharMatch		
-				jsr MoveNextAddrPtr
-				jsr decrementNoE
-				ldy #0
-				lda (aNumberofEntries),Y
-			beq exit_loopFFGe
-		jmp loopFFGe
-		
-		.exit_loopFFGe
-	rts
-				
-	
-	\\__________________________________________________
-	.SearchByPublisher
-	\\__________________________________________________
-		.loopFFP
-			jsr FastFindPub
-			bne FFP_NoCharMatch
-				jsr StoreAddrInAlphaArray
-				ldy #0
-				lda (aSearchNumber),Y
-				clc
-				adc #1
-				sta (aSearchNumber),Y
-			.FFP_NoCharMatch
-				jsr MoveNextAddrPtr
-				jsr decrementNoE
-				ldy #0
-				lda (aNumberofEntries),Y
-				beq exit_loopFFP
-			jmp loopFFP
-		
-		.exit_loopFFP
-	rts
-	
-	\\ add Pub to Next Addr
-	\\ stas vPublisherAddress
-	\\ 
-	\\.loop
-	\\ jsr FastFindPub
-	\\ if 0 ..	
-	\\ jsr StoreAddrInAlphaArray
-	\\ jsr MoveNextAddrPtr
-	\\ inc SearchNumberxx??
-	\\ dec aNumberofEntries
-	\\ beq exit..
-	\\ jmp loop
-	\\jsr storeNextAddr final result
-	
-	
-		;
-	
+
 
 \\__________________________________________________
 .FastFindGame
@@ -721,6 +655,8 @@ jmp backtoBASIC
 		cmp #&FF
 		
 rts
+
+
 
 \\__________________________________________________
 .FastFindGenre
@@ -752,6 +688,7 @@ rts
 	
 	.skip2ndGenre
 rts
+
 
 
 \\__________________________________________________	
@@ -816,7 +753,86 @@ rts; StoreAlphaAddrInArray
 
 
 
+.ELKORBEEB SKIP 1 ; 0 = ELK  3 = MASTER
+\\__________________________________________________
+.GetOSVer
+\\__________________________________________________
+
+	lda #0 
+	ldx #1 
+	jsr OSBYTE 
+	stx ELKORBEEB
+	\\ X  OS  BBC
+	;    0.10 A/B doesn't return a value, just BRKs "OS EPROM 0.10"
+	;  0 1.00 A/B
+	;  1 1.20 B / A1.0 B US / 1.2 B German
+	;  2 2.00 B+ 64K / B+ 128K
+	;  3 3.20 Master 128 / Master MOS "3.5" / Master Turbo
+	;  4 4.00 Master ET
+	;  5 5.00 Master Compact / "5.10"
+rts			
+
+
+.CFALT_ALREADYCALLED EQUB 0
+.cf_hibyte SKIP 1 ; number to store in hi byte part of addr table to be created
+\\__________________________________________________
+.CreateFontAddrLookupTable 
+\\ builds the hi byte part of the font addr look up table.
+\\ Checks whether Elk or Master and builds addr table accordingly.
+\\ The low byte part of the table is always the same so has been built
+\\ at "compile" time.
+\\
+\\__________________________________________________
+
+
+\\ Expects no values on entry
+\\ All registers corrupted on leaving :)
+
 	
+	lda CFALT_ALREADYCALLED
+	bne skip_CFALT
+	
+	lda #FontHiStartAddr MOD 256
+	sta sm_TableAddr+1
+	lda #FontHiStartAddr DIV 256
+	sta sm_TableAddr+2
+	
+	lda ELKORBEEB
+	bne cfalt_Master
+		;elk
+		lda #&C0
+		jmp cfalt_skipMaster
+	.cfalt_Master
+		lda #&89
+	
+	.cfalt_skipMaster
+		sta cf_hibyte
+	
+	
+	;build table of hi bytes..
+	
+		ldx #2
+	.cfalt_outerloop
+		lda cf_hibyte
+		.cfalt_innerloop
+			ldy #31 
+			.cfalt_loop			
+				.sm_TableAddr
+					sta &FFFF
+					IN16 sm_TableAddr+1
+					dey
+			bpl cfalt_loop
+		inc cf_hibyte
+		dex
+	bpl cfalt_outerloop
+	
+	lda #1
+	sta CFALT_ALREADYCALLED
+	
+	.skip_CFALT
+rts			
+
+
 ORG &1200
 	.FontAddrLo
 	.aRoutineOption		SKIP 1
@@ -825,34 +841,22 @@ ORG &1200
 	.aSelection			SKIP 1
 ORG &1220
 
-	IF ELK
-		FOR n, &c000, &C2FF, 8
+		\\create the low bytes of font address table (font bitmaps in OS ROM)
+		FOR n, &0000, &02FF, 8
 			EQUB n MOD 256
 		NEXT
-	ELSE
-		FOR n, &8900, &8BFF, 8
-			EQUB n MOD 256
-		NEXT
-	ENDIF 
+	
 
 
 ORG &1300
 	.FontAddrHi	
 
 ORG &1320
+.FontHiStartAddr
 
-	IF ELK
-		FOR n, &C000, &C2FF, 8
-			EQUB n DIV 256
-		NEXT 
-	ELSE
-		FOR n, &8900, &8BFF, 8
-			EQUB n DIV 256
-		NEXT 
-	ENDIF
-	
 
 
 .end
 SAVE "mgcjbn", start, end
-PUTBASIC ".\src\MGCNORM", "MGCNORM"
+;PUTBASIC ".\src\MGCNORM", "MGCNORM" 
+
